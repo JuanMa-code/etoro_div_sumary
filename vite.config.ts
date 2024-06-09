@@ -3,6 +3,9 @@ import { defineConfig } from 'vite'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/etodo_div_sumarry/',
+  base: '/etoro_div_sumary/',
   plugins: [react()],
+  build: {
+    outDir: 'dist', 
+  },
 })

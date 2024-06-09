@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://JuanMa-code.github.io/etodo_div_sumarry",
+  "homepage": "https://JuanMa-code.github.io/etoro_div_sumary",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
