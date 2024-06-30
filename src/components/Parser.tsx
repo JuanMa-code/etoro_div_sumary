@@ -61,7 +61,7 @@ const dataSource = [
 ];
 
 
-function getNameByLongName(longName: string): string | undefined {
+export function getNameByLongName(longName: string): string | undefined {
     const foundItem = dataSource.find(item => item.long_name === longName);
     return foundItem?.name;
 }

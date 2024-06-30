@@ -1,5 +1,6 @@
 import { Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from '@mui/material';
 import React from 'react';
+import { getNameByLongName } from '../Parser';
 
 interface DividendData {
   "Fecha de pago": string;
