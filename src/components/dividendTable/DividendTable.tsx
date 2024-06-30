@@ -62,7 +62,7 @@ const DividendTable: React.FC<Props> = ({ data }) => {
           <TableBody>
             {rows.map((row, index) => (
               <TableRow key={index}>
-                <TableCell>{row.nombre}</TableCell>
+                <TableCell>{getNameByLongName(row.nombre)}</TableCell>
                 <TableCell>{row.fecha}</TableCell>
                 <TableCell>{row.importeUSD.toFixed(2)}</TableCell>
                 <TableCell>{row.importeEUR.toFixed(2)}</TableCell>
