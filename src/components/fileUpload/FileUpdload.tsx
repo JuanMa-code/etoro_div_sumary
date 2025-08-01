@@ -133,12 +133,17 @@ const FileUpload: React.FC = () => {
           throw new Error('No se pudo leer el archivo');
         }
 
+        console.log('Cargando archivo Excel...');
         const workbook = XLSX.read(data, { type: 'array' });
+        
+        console.log('Archivo cargado, hojas:', workbook.SheetNames.length);
         
         if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
           throw new Error('El archivo no contiene hojas de cálculo válidas');
         }
 
+        console.log('Hojas encontradas:', workbook.SheetNames);
+        
         setWorkbook(workbook);
         setAvailableSheets(workbook.SheetNames);
         
@@ -150,11 +155,14 @@ const FileUpload: React.FC = () => {
         );
         
         const defaultSheetIndex = dividendSheetIndex !== -1 ? dividendSheetIndex : Math.min(3, workbook.SheetNames.length - 1);
+        console.log('Usando hoja índice:', defaultSheetIndex, 'nombre:', workbook.SheetNames[defaultSheetIndex]);
+        
         setSelectedSheet(defaultSheetIndex);
         
         processSheet(workbook, defaultSheetIndex);
         
       } catch (err) {
+        console.error('Error cargando archivo:', err);
         setError(`Error al procesar el archivo: ${err instanceof Error ? err.message : 'Error desconocido'}`);
         setLoading(false);
       }
@@ -171,22 +179,90 @@ const FileUpload: React.FC = () => {
   const processSheet = (wb: XLSX.WorkBook, sheetIndex: number) => {
     try {
       const sheetName = wb.SheetNames[sheetIndex];
-      const sheet = wb.Sheets[sheetName];
+      const worksheet = wb.Sheets[sheetName];
       
-      if (!sheet) {
+      if (!worksheet) {
         throw new Error(`La hoja "${sheetName}" no se pudo leer`);
       }
 
-      const jsonData = XLSX.utils.sheet_to_json(sheet);
+      console.log('Procesando hoja:', sheetName);
+      
+      // Convertir la hoja a JSON
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+        header: 1,
+        defval: '',
+        raw: false
+      }) as any[][];
       
       if (!jsonData || jsonData.length === 0) {
-        throw new Error(`La hoja "${sheetName}" está vacía o no contiene datos válidos`);
+        throw new Error(`La hoja "${sheetName}" está vacía`);
       }
 
-      const cleanedData = cleanDividendData(jsonData);
+      console.log('Filas encontradas:', jsonData.length);
+      console.log('Primera fila (headers):', jsonData[0]);
+      
+      // Buscar la fila de headers
+      let headerRowIndex = -1;
+      let headers: string[] = [];
+      
+      for (let i = 0; i < Math.min(5, jsonData.length); i++) {
+        const row = jsonData[i];
+        if (Array.isArray(row) && row.length > 3) {
+          const potentialHeaders = row.map(cell => String(cell || '').trim());
+          const hasExpectedHeaders = potentialHeaders.some(header => 
+            header && (
+              header.toLowerCase().includes('instrumento') ||
+              header.toLowerCase().includes('dividend') ||
+              header.toLowerCase().includes('fecha') ||
+              header.toLowerCase().includes('isin')
+            )
+          );
+          
+          if (hasExpectedHeaders) {
+            headers = potentialHeaders;
+            headerRowIndex = i;
+            break;
+          }
+        }
+      }
+      
+      if (headerRowIndex === -1 || headers.filter(h => h).length === 0) {
+        throw new Error(`No se encontraron headers válidos en la hoja "${sheetName}"`);
+      }
+      
+      console.log('Headers encontrados en fila', headerRowIndex + 1, ':', headers);
+      
+      // Convertir filas de datos a objetos
+      const processedData: any[] = [];
+      for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+        const row = jsonData[i];
+        if (!Array.isArray(row) || row.length === 0) continue;
+        
+        const rowData: any = {};
+        let hasData = false;
+        
+        for (let j = 0; j < headers.length; j++) {
+          const header = headers[j];
+          const cellValue = row[j];
+          
+          if (header && cellValue !== undefined && cellValue !== null && cellValue !== '') {
+            rowData[header] = cellValue;
+            hasData = true;
+          }
+        }
+        
+        if (hasData && Object.keys(rowData).length > 0) {
+          processedData.push(rowData);
+        }
+      }
+      
+      console.log('Registros procesados:', processedData.length);
+      console.log('Primeros 3 registros:', processedData.slice(0, 3));
+
+      const cleanedData = cleanDividendData(processedData);
       
       if (cleanedData.length === 0) {
-        throw new Error(`No se encontraron datos de dividendos válidos en la hoja "${sheetName}". Verifica que el archivo contenga las columnas correctas.`);
+        throw new Error(`No se encontraron datos de dividendos válidos en la hoja "${sheetName}". Headers encontrados: ${headers.join(', ')}`);
       }
 
       setData(cleanedData);
@@ -194,6 +270,7 @@ const FileUpload: React.FC = () => {
       setLoading(false);
       
     } catch (err) {
+      console.error('Error procesando hoja:', err);
       setError(`Error al procesar la hoja: ${err instanceof Error ? err.message : 'Error desconocido'}`);
       setLoading(false);
     }

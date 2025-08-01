@@ -68,32 +68,63 @@ export const validateDividendData = (data: unknown): data is DividendData => {
   }
   
   const record = data as Record<string, unknown>;
-  return (
-    'Fecha de pago' in record &&
-    'Nombre del instrumento' in record &&
-    'Dividendo neto recibido (USD)' in record &&
-    'Dividendo neto recibido (EUR)' in record &&
-    typeof record['Fecha de pago'] === 'string' &&
-    typeof record['Nombre del instrumento'] === 'string' &&
-    typeof record['Dividendo neto recibido (USD)'] === 'number' &&
-    typeof record['Dividendo neto recibido (EUR)'] === 'number'
-  );
+  
+  // Verificar campos obligatorios con más flexibilidad
+  const hasFechaPago = 'Fecha de pago' in record && record['Fecha de pago'] != null;
+  const hasNombreInstrumento = 'Nombre del instrumento' in record && record['Nombre del instrumento'] != null;
+  const hasDividendoUSD = 'Dividendo neto recibido (USD)' in record && record['Dividendo neto recibido (USD)'] != null;
+  const hasDividendoEUR = 'Dividendo neto recibido (EUR)' in record && record['Dividendo neto recibido (EUR)'] != null;
+  
+  return hasFechaPago && hasNombreInstrumento && (hasDividendoUSD || hasDividendoEUR);
 };
 
 /**
  * Cleans and validates raw Excel data
  */
 export const cleanDividendData = (rawData: unknown[]): DividendData[] => {
-  return rawData
-    .filter((item): item is DividendData => validateDividendData(item) && 
-      Boolean(item['Fecha de pago']) && Boolean(item['Nombre del instrumento']))
-    .map((item) => ({
-      ...item,
-      'Dividendo neto recibido (USD)': Number(item['Dividendo neto recibido (USD)']) || 0,
-      'Dividendo neto recibido (EUR)': Number(item['Dividendo neto recibido (EUR)']) || 0,
-      'Importe de la retención tributaria (USD)': Number(item['Importe de la retención tributaria (USD)']) || 0,
-      'Importe de la retención tributaria (EUR)': Number(item['Importe de la retención tributaria (EUR)']) || 0,
-    }));
+  console.log('cleanDividendData - datos recibidos:', rawData.length);
+  
+  if (!Array.isArray(rawData)) {
+    console.error('cleanDividendData - datos no son un array');
+    return [];
+  }
+  
+  const validItems = rawData
+    .filter((item, index) => {
+      const isValid = validateDividendData(item);
+      if (!isValid && index < 5) {
+        console.log(`Item ${index} no válido:`, item);
+      }
+      return isValid;
+    })
+    .map((item) => {
+      const record = item as any; // Usar any para evitar problemas de tipo
+      
+      // Convertir valores de forma más robusta
+      const cleanedItem: DividendData = {
+        'Fecha de pago': String(record['Fecha de pago'] || ''),
+        'Nombre del instrumento': String(record['Nombre del instrumento'] || ''),
+        'ISIN': String(record['ISIN'] || ''),
+        'Dividendo neto recibido (USD)': parseFloat(String(record['Dividendo neto recibido (USD)'] || 0)) || 0,
+        'Dividendo neto recibido (EUR)': parseFloat(String(record['Dividendo neto recibido (EUR)'] || 0)) || 0,
+        'Importe de la retención tributaria (USD)': parseFloat(String(record['Importe de la retención tributaria (USD)'] || 0)) || 0,
+        'Importe de la retención tributaria (EUR)': parseFloat(String(record['Importe de la retención tributaria (EUR)'] || 0)) || 0,
+        'Tasa de retención fiscal (%)': String(record['Tasa de retención fiscal (%)'] || ''),
+        'ID de posición': String(record['ID de posición'] || ''),
+        'Tipo': String(record['Tipo'] || ''),
+      };
+      
+      return cleanedItem;
+    })
+    .filter(item => 
+      item['Fecha de pago'] && 
+      item['Nombre del instrumento'] && 
+      (item['Dividendo neto recibido (USD)'] > 0 || item['Dividendo neto recibido (EUR)'] > 0)
+    );
+  
+  console.log('cleanDividendData - items válidos:', validItems.length);
+  
+  return validItems;
 };
 
 /**
