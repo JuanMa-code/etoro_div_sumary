@@ -123,7 +123,7 @@ const DateAccumulatedTable: React.FC<Props> = ({ data }) => {
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%' }}>
       <Box mb={2}>
         <Typography variant="h6" gutterBottom>
           Totales Acumulados por Fecha ({processedData.length} fechas)
@@ -143,8 +143,8 @@ const DateAccumulatedTable: React.FC<Props> = ({ data }) => {
         />
       </Box>
 
-      <TableContainer component={Paper} style={{ width: '100%', maxHeight: '70vh' }}>
-        <Table stickyHeader>
+      <TableContainer component={Paper} sx={{ width: '100%', maxHeight: '70vh', overflowX: 'auto' }}>
+        <Table stickyHeader sx={{ minWidth: 650 }}>
           <TableHead>
             <TableRow>
               <TableCell>

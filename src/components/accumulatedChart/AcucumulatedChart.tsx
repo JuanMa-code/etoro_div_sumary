@@ -202,7 +202,7 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
   }, [processedData]);
 
   return (
-    <Box>
+    <Box sx={{ width: '100%' }}>
       <Stack spacing={2} mb={3}>
         <Typography variant="h6">
           Gráfico de Dividendos
@@ -249,7 +249,7 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
         </Stack>
       </Stack>
 
-      <Paper elevation={1} sx={{ p: 2, height: '500px' }}>
+      <Paper elevation={1} sx={{ p: 2, height: '500px', width: '100%' }}>
         <Line data={chartData} options={chartOptions} />
       </Paper>
     </Box>

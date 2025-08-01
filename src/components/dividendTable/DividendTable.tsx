@@ -113,7 +113,7 @@ const DividendTable: React.FC<Props> = ({ data }) => {
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%' }}>
       <Box mb={2} display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap">
         <Typography variant="h6">
           Tabla de Dividendos ({processedData.length} registros)
@@ -146,8 +146,8 @@ const DividendTable: React.FC<Props> = ({ data }) => {
         />
       </Box>
 
-      <TableContainer component={Paper} style={{ width: '100%', maxHeight: '70vh' }}>
-        <Table stickyHeader>
+      <TableContainer component={Paper} sx={{ width: '100%', maxHeight: '70vh', overflowX: 'auto' }}>
+        <Table stickyHeader sx={{ minWidth: 650 }}>
           <TableHead>
             <TableRow>
               <TableCell>

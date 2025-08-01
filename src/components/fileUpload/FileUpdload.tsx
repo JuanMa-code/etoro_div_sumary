@@ -11,14 +11,21 @@ import {
   Select, 
   MenuItem,
   Chip,
-  Stack
+  Stack,
+  Tooltip,
+  IconButton
 } from '@mui/material';
+import { Help } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import { DividendData } from '../../types/dividend';
 import { cleanDividendData } from '../../utils/dateUtils';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import DividendTable from '../dividendTable/DividendTable';
 import DateAccumulatedTable from '../dateAccumulatedTable/DateAccumulatedTable';
 import AccumulatedChart from '../accumulatedChart/AcucumulatedChart';
+import Dashboard from '../dashboard/Dashboard';
+import AdvancedFilters from '../filters/AdvancedFilters';
+import PredictionsPanel from '../predictions/PredictionsPanel';
 
 interface FileInfo {
   name: string;
@@ -28,7 +35,8 @@ interface FileInfo {
 
 const FileUpload: React.FC = () => {
   const [data, setData] = useState<DividendData[]>([]);
-  const [view, setView] = useState<'table' | 'dateTable' | 'chart'>('table');
+  const [filteredData, setFilteredData] = useState<DividendData[]>([]);
+  const [view, setView] = useState<'dashboard' | 'table' | 'dateTable' | 'chart' | 'predictions'>('dashboard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -36,6 +44,40 @@ const FileUpload: React.FC = () => {
   const [selectedSheet, setSelectedSheet] = useState<number>(0);
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
+
+  // Atajos de teclado
+  useKeyboardShortcuts([
+    {
+      key: '1',
+      altKey: true,
+      action: () => data.length > 0 && setView('dashboard'),
+      description: 'Ir al Dashboard'
+    },
+    {
+      key: '2',
+      altKey: true,
+      action: () => data.length > 0 && setView('table'),
+      description: 'Ir a Tabla de Dividendos'
+    },
+    {
+      key: '3',
+      altKey: true,
+      action: () => data.length > 0 && setView('dateTable'),
+      description: 'Ir a Acumulado por Fecha'
+    },
+    {
+      key: '4',
+      altKey: true,
+      action: () => data.length > 0 && setView('chart'),
+      description: 'Ir a Gráficos'
+    },
+    {
+      key: '5',
+      altKey: true,
+      action: () => data.length > 0 && setView('predictions'),
+      description: 'Ir a Predicciones'
+    }
+  ]);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -169,9 +211,14 @@ const FileUpload: React.FC = () => {
   };
 
   return (
-    <Container>
-      <Typography variant="h6" gutterBottom>
-        Subir archivo Excel de dividendos
+    <Container maxWidth={false} sx={{ px: 0, width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
+      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+        Subir archivo Excel de dividendos eToro
+        <Tooltip title="Atajos: Alt+1-5 para navegar entre vistas">
+          <IconButton size="small" sx={{ ml: 1 }}>
+            <Help fontSize="small" />
+          </IconButton>
+        </Tooltip>
       </Typography>
       
       <Box mb={2}>
@@ -243,30 +290,70 @@ const FileUpload: React.FC = () => {
       {data.length > 0 && (
         <Box mt={2}>
           <Box mb={2}>
-            <Stack direction="row" spacing={1} flexWrap="wrap">
+            <Stack 
+              direction="row" 
+              spacing={1} 
+              flexWrap="wrap" 
+              sx={{ 
+                justifyContent: { xs: 'flex-start', sm: 'center', md: 'flex-start' },
+                gap: 1 
+              }}
+            >
+              <Button 
+                variant={view === 'dashboard' ? 'contained' : 'outlined'} 
+                onClick={() => setView('dashboard')}
+                sx={{ minWidth: { xs: '120px', sm: '140px' } }}
+              >
+                📊 Dashboard
+              </Button>
               <Button 
                 variant={view === 'table' ? 'contained' : 'outlined'} 
                 onClick={() => setView('table')}
+                sx={{ minWidth: { xs: '120px', sm: '140px' } }}
               >
-                Tabla de Dividendos
+                📋 Tabla de Dividendos
               </Button>
               <Button 
                 variant={view === 'dateTable' ? 'contained' : 'outlined'} 
                 onClick={() => setView('dateTable')}
+                sx={{ minWidth: { xs: '120px', sm: '140px' } }}
               >
-                Acumulado por Fecha
+                📅 Acumulado por Fecha
               </Button>
               <Button 
                 variant={view === 'chart' ? 'contained' : 'outlined'} 
                 onClick={() => setView('chart')}
+                sx={{ minWidth: { xs: '120px', sm: '140px' } }}
               >
-                Gráfico Acumulado
+                📈 Gráficos
+              </Button>
+              <Button 
+                variant={view === 'predictions' ? 'contained' : 'outlined'} 
+                onClick={() => setView('predictions')}
+                sx={{ minWidth: { xs: '120px', sm: '140px' } }}
+              >
+                🔮 Predicciones IA
               </Button>
             </Stack>
           </Box>
-          {view === 'table' && <DividendTable data={data} />}
-          {view === 'dateTable' && <DateAccumulatedTable data={data} />}
-          {view === 'chart' && <AccumulatedChart data={data} />}
+
+          {/* Filtros avanzados para vistas que no sean dashboard */}
+          {view !== 'dashboard' && view !== 'predictions' && (
+            <Box sx={{ width: '100%', mb: 2 }}>
+              <AdvancedFilters 
+                data={data} 
+                onFiltersChange={setFilteredData}
+              />
+            </Box>
+          )}
+          
+          <Box sx={{ width: '100%' }}>
+            {view === 'dashboard' && <Dashboard data={data} />}
+            {view === 'table' && <DividendTable data={filteredData.length > 0 ? filteredData : data} />}
+            {view === 'dateTable' && <DateAccumulatedTable data={filteredData.length > 0 ? filteredData : data} />}
+            {view === 'chart' && <AccumulatedChart data={filteredData.length > 0 ? filteredData : data} />}
+            {view === 'predictions' && <PredictionsPanel data={data} />}
+          </Box>
         </Box>
       )}
     </Container>
