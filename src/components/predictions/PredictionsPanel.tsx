@@ -336,8 +336,10 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
               
               {predictions.topGrowthCompanies.slice(0, 3).map((company) => (
                 <Box key={company.name} mb={1}>
-                  <Typography variant="body2" noWrap>
-                    {company.name.substring(0, 20)}...
+                  <Typography variant="body2" noWrap title={company.name}>
+                    {company.name.length > 20 
+                      ? `${company.name.substring(0, 20)}...`
+                      : company.name}
                   </Typography>
                   <Box display="flex" justifyContent="space-between" alignItems="center">
                     <Chip 

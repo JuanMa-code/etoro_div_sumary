@@ -164,7 +164,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
     onFiltersChange(filteredData);
   }, [filteredData, onFiltersChange]);
 
-  const handleFilterChange = (key: keyof FilterOptions, value: any) => {
+  const handleFilterChange = <K extends keyof FilterOptions>(key: K, value: FilterOptions[K]) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
@@ -235,7 +235,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
             <Select
               value={filters.sortBy}
               label="Ordenar por"
-              onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+              onChange={(e) => handleFilterChange('sortBy', e.target.value as FilterOptions['sortBy'])}
             >
               <MenuItem value="date">📅 Fecha</MenuItem>
               <MenuItem value="amount">💰 Importe</MenuItem>
@@ -249,7 +249,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
             <Select
               value={filters.sortOrder}
               label="Orden"
-              onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
+              onChange={(e) => handleFilterChange('sortOrder', e.target.value as FilterOptions['sortOrder'])}
             >
               <MenuItem value="desc">↓ Descendente</MenuItem>
               <MenuItem value="asc">↑ Ascendente</MenuItem>

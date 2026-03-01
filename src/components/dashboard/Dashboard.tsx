@@ -38,6 +38,48 @@ interface DashboardMetrics {
   trend: 'up' | 'down' | 'stable';
 }
 
+interface MetricCardProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ReactNode;
+  color?: 'primary' | 'secondary' | 'success' | 'warning' | 'error';
+  tooltip?: string;
+}
+
+const MetricCard: React.FC<MetricCardProps> = ({ title, value, subtitle, icon, color = 'primary', tooltip }) => (
+  <Card elevation={2} sx={{ height: '100%' }}>
+    <CardContent>
+      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+        <Typography variant="h6" color="text.secondary" gutterBottom>
+          {title}
+        </Typography>
+        <Box display="flex" alignItems="center">
+          {tooltip && (
+            <Tooltip title={tooltip}>
+              <IconButton size="small">
+                <Info fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Box color={`${color}.main`}>{icon}</Box>
+        </Box>
+      </Box>
+      <Typography variant="h4" component="div" color={`${color}.main`} fontWeight="bold">
+        {typeof value === 'number' ? value.toLocaleString('en-US', { 
+          minimumFractionDigits: 2, 
+          maximumFractionDigits: 2 
+        }) : value}
+      </Typography>
+      {subtitle && (
+        <Typography variant="body2" color="text.secondary" mt={1}>
+          {subtitle}
+        </Typography>
+      )}
+    </CardContent>
+  </Card>
+);
+
 const Dashboard: React.FC<Props> = ({ data }) => {
   const metrics = useMemo((): DashboardMetrics => {
     if (data.length === 0) {
@@ -122,46 +164,6 @@ const Dashboard: React.FC<Props> = ({ data }) => {
     };
   }, [data]);
 
-  const MetricCard: React.FC<{
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    icon: React.ReactNode;
-    color?: 'primary' | 'secondary' | 'success' | 'warning' | 'error';
-    tooltip?: string;
-  }> = ({ title, value, subtitle, icon, color = 'primary', tooltip }) => (
-    <Card elevation={2} sx={{ height: '100%' }}>
-      <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            {title}
-          </Typography>
-          <Box display="flex" alignItems="center">
-            {tooltip && (
-              <Tooltip title={tooltip}>
-                <IconButton size="small">
-                  <Info fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            )}
-            <Box color={`${color}.main`}>{icon}</Box>
-          </Box>
-        </Box>
-        <Typography variant="h4" component="div" color={`${color}.main`} fontWeight="bold">
-          {typeof value === 'number' ? value.toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
-          }) : value}
-        </Typography>
-        {subtitle && (
-          <Typography variant="body2" color="text.secondary" mt={1}>
-            {subtitle}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
-  );
-
   if (data.length === 0) {
     return (
       <Box textAlign="center" py={4}>
@@ -242,7 +244,9 @@ const Dashboard: React.FC<Props> = ({ data }) => {
                   Mejor empresa
                 </Typography>
                 <Typography variant="h6" color="secondary">
-                  {metrics.bestCompany.name.substring(0, 30)}...
+                  {metrics.bestCompany.name.length > 30 
+                    ? `${metrics.bestCompany.name.substring(0, 30)}...` 
+                    : metrics.bestCompany.name}
                 </Typography>
                 <Typography variant="body1" color="secondary">
                   ${metrics.bestCompany.amount.toFixed(2)}

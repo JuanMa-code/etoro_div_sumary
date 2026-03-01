@@ -1,4 +1,9 @@
-const dataSource = [
+export interface CompanyMapping {
+  name: string;
+  long_name: string;
+}
+
+const dataSource: readonly CompanyMapping[] = [
     // US Companies
     { name: 'ABBV', long_name: 'AbbVie Inc' },
     { name: 'APD', long_name: 'Air Products & Chemicals Inc' },
@@ -90,7 +95,7 @@ export function getLongNameByName(shortName: string): string | undefined {
  * Gets all available company mappings
  * Returns array of all companies with their short and long names
  */
-export function getAllCompanies(): typeof dataSource {
+export function getAllCompanies(): CompanyMapping[] {
     return [...dataSource];
 }
 
@@ -98,7 +103,7 @@ export function getAllCompanies(): typeof dataSource {
  * Searches for companies by partial name match (both short and long names)
  * Returns array of matching companies
  */
-export function searchCompanies(searchTerm: string): typeof dataSource {
+export function searchCompanies(searchTerm: string): CompanyMapping[] {
     if (!searchTerm) return [];
     
     const term = searchTerm.toLowerCase().trim();

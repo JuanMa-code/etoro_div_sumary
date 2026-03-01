@@ -3,8 +3,9 @@ import { DividendData } from '../types/dividend';
 /**
  * Parses a date string from Excel format to JavaScript Date
  * Handles multiple date formats: DD/MM/YYYY, DD-MM-YYYY, MM/DD/YYYY
+ * Also handles Excel serial date numbers
  */
-export const parseExcelDate = (dateStr: string): Date => {
+export const parseExcelDate = (dateStr: string | number): Date => {
   if (!dateStr) return new Date();
   
   // If it's already a number (Excel serial date), convert it
@@ -62,18 +63,21 @@ export const formatDate = (date: Date): string => {
 /**
  * Validates dividend data structure
  */
-export const validateDividendData = (data: unknown): data is DividendData => {
-  if (!data || typeof data !== 'object' || data === null) {
+export const validateDividendData = (data: unknown): data is Record<string, unknown> => {
+  if (!data || typeof data !== 'object' || data === null || Array.isArray(data)) {
     return false;
   }
   
   const record = data as Record<string, unknown>;
   
-  // Verificar campos obligatorios con más flexibilidad
-  const hasFechaPago = 'Fecha de pago' in record && record['Fecha de pago'] != null;
-  const hasNombreInstrumento = 'Nombre del instrumento' in record && record['Nombre del instrumento'] != null;
-  const hasDividendoUSD = 'Dividendo neto recibido (USD)' in record && record['Dividendo neto recibido (USD)'] != null;
-  const hasDividendoEUR = 'Dividendo neto recibido (EUR)' in record && record['Dividendo neto recibido (EUR)'] != null;
+  const has = (obj: Record<string, unknown>, key: string): boolean =>
+    Object.prototype.hasOwnProperty.call(obj, key);
+
+  // Verificar campos obligatorios con protección contra prototype pollution
+  const hasFechaPago = has(record, 'Fecha de pago') && record['Fecha de pago'] != null;
+  const hasNombreInstrumento = has(record, 'Nombre del instrumento') && record['Nombre del instrumento'] != null;
+  const hasDividendoUSD = has(record, 'Dividendo neto recibido (USD)') && record['Dividendo neto recibido (USD)'] != null;
+  const hasDividendoEUR = has(record, 'Dividendo neto recibido (EUR)') && record['Dividendo neto recibido (EUR)'] != null;
   
   return hasFechaPago && hasNombreInstrumento && (hasDividendoUSD || hasDividendoEUR);
 };
@@ -82,47 +86,37 @@ export const validateDividendData = (data: unknown): data is DividendData => {
  * Cleans and validates raw Excel data
  */
 export const cleanDividendData = (rawData: unknown[]): DividendData[] => {
-  console.log('cleanDividendData - datos recibidos:', rawData.length);
-  
   if (!Array.isArray(rawData)) {
-    console.error('cleanDividendData - datos no son un array');
     return [];
   }
   
+  const toStr = (val: unknown): string => {
+    const str = String(val ?? '');
+    // Sanitizar caracteres de control, manteniendo solo texto imprimible
+    // eslint-disable-next-line no-control-regex
+    return str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  };
+  const toNum = (val: unknown): number => parseFloat(String(val ?? 0)) || 0;
+
   const validItems = rawData
-    .filter((item, index) => {
-      const isValid = validateDividendData(item);
-      if (!isValid && index < 5) {
-        console.log(`Item ${index} no válido:`, item);
-      }
-      return isValid;
-    })
-    .map((item) => {
-      const record = item as any; // Usar any para evitar problemas de tipo
-      
-      // Convertir valores de forma más robusta
-      const cleanedItem: DividendData = {
-        'Fecha de pago': String(record['Fecha de pago'] || ''),
-        'Nombre del instrumento': String(record['Nombre del instrumento'] || ''),
-        'ISIN': String(record['ISIN'] || ''),
-        'Dividendo neto recibido (USD)': parseFloat(String(record['Dividendo neto recibido (USD)'] || 0)) || 0,
-        'Dividendo neto recibido (EUR)': parseFloat(String(record['Dividendo neto recibido (EUR)'] || 0)) || 0,
-        'Importe de la retención tributaria (USD)': parseFloat(String(record['Importe de la retención tributaria (USD)'] || 0)) || 0,
-        'Importe de la retención tributaria (EUR)': parseFloat(String(record['Importe de la retención tributaria (EUR)'] || 0)) || 0,
-        'Tasa de retención fiscal (%)': String(record['Tasa de retención fiscal (%)'] || ''),
-        'ID de posición': String(record['ID de posición'] || ''),
-        'Tipo': String(record['Tipo'] || ''),
-      };
-      
-      return cleanedItem;
-    })
+    .filter((item): item is Record<string, unknown> => validateDividendData(item))
+    .map((record): DividendData => ({
+      'Fecha de pago': toStr(record['Fecha de pago']),
+      'Nombre del instrumento': toStr(record['Nombre del instrumento']),
+      'ISIN': toStr(record['ISIN']),
+      'Dividendo neto recibido (USD)': toNum(record['Dividendo neto recibido (USD)']),
+      'Dividendo neto recibido (EUR)': toNum(record['Dividendo neto recibido (EUR)']),
+      'Importe de la retención tributaria (USD)': toNum(record['Importe de la retención tributaria (USD)']),
+      'Importe de la retención tributaria (EUR)': toNum(record['Importe de la retención tributaria (EUR)']),
+      'Tasa de retención fiscal (%)': toStr(record['Tasa de retención fiscal (%)']),
+      'ID de posición': toStr(record['ID de posición']),
+      'Tipo': toStr(record['Tipo']),
+    }))
     .filter(item => 
       item['Fecha de pago'] && 
       item['Nombre del instrumento'] && 
       (item['Dividendo neto recibido (USD)'] > 0 || item['Dividendo neto recibido (EUR)'] > 0)
     );
-  
-  console.log('cleanDividendData - items válidos:', validItems.length);
   
   return validItems;
 };

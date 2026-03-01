@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Button, 
   Typography, 
@@ -35,7 +35,7 @@ interface FileInfo {
 
 const FileUpload: React.FC = () => {
   const [data, setData] = useState<DividendData[]>([]);
-  const [filteredData, setFilteredData] = useState<DividendData[]>([]);
+  const [filteredData, setFilteredData] = useState<DividendData[] | null>(null);
   const [view, setView] = useState<'dashboard' | 'table' | 'dateTable' | 'chart' | 'predictions'>('dashboard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +46,7 @@ const FileUpload: React.FC = () => {
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
 
   // Atajos de teclado
-  useKeyboardShortcuts([
+  const shortcuts = useMemo(() => [
     {
       key: '1',
       altKey: true,
@@ -77,15 +77,17 @@ const FileUpload: React.FC = () => {
       action: () => data.length > 0 && setView('predictions'),
       description: 'Ir a Predicciones'
     }
-  ]);
+  ], [data.length]);
 
-  const formatFileSize = (bytes: number): string => {
+  useKeyboardShortcuts(shortcuts);
+
+  const formatFileSize = useCallback((bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  }, []);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -133,16 +135,11 @@ const FileUpload: React.FC = () => {
           throw new Error('No se pudo leer el archivo');
         }
 
-        console.log('Cargando archivo Excel...');
         const workbook = XLSX.read(data, { type: 'array' });
-        
-        console.log('Archivo cargado, hojas:', workbook.SheetNames.length);
         
         if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
           throw new Error('El archivo no contiene hojas de cálculo válidas');
         }
-
-        console.log('Hojas encontradas:', workbook.SheetNames);
         
         setWorkbook(workbook);
         setAvailableSheets(workbook.SheetNames);
@@ -155,14 +152,12 @@ const FileUpload: React.FC = () => {
         );
         
         const defaultSheetIndex = dividendSheetIndex !== -1 ? dividendSheetIndex : Math.min(3, workbook.SheetNames.length - 1);
-        console.log('Usando hoja índice:', defaultSheetIndex, 'nombre:', workbook.SheetNames[defaultSheetIndex]);
         
         setSelectedSheet(defaultSheetIndex);
         
         processSheet(workbook, defaultSheetIndex);
         
       } catch (err) {
-        console.error('Error cargando archivo:', err);
         setError(`Error al procesar el archivo: ${err instanceof Error ? err.message : 'Error desconocido'}`);
         setLoading(false);
       }
@@ -184,22 +179,17 @@ const FileUpload: React.FC = () => {
       if (!worksheet) {
         throw new Error(`La hoja "${sheetName}" no se pudo leer`);
       }
-
-      console.log('Procesando hoja:', sheetName);
       
       // Convertir la hoja a JSON
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
         header: 1,
         defval: '',
         raw: false
-      }) as any[][];
+      }) as unknown[][];
       
       if (!jsonData || jsonData.length === 0) {
         throw new Error(`La hoja "${sheetName}" está vacía`);
       }
-
-      console.log('Filas encontradas:', jsonData.length);
-      console.log('Primera fila (headers):', jsonData[0]);
       
       // Buscar la fila de headers
       let headerRowIndex = -1;
@@ -230,15 +220,13 @@ const FileUpload: React.FC = () => {
         throw new Error(`No se encontraron headers válidos en la hoja "${sheetName}"`);
       }
       
-      console.log('Headers encontrados en fila', headerRowIndex + 1, ':', headers);
-      
       // Convertir filas de datos a objetos
-      const processedData: any[] = [];
+      const processedData: Record<string, unknown>[] = [];
       for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
         const row = jsonData[i];
         if (!Array.isArray(row) || row.length === 0) continue;
         
-        const rowData: any = {};
+        const rowData: Record<string, unknown> = {};
         let hasData = false;
         
         for (let j = 0; j < headers.length; j++) {
@@ -256,9 +244,6 @@ const FileUpload: React.FC = () => {
         }
       }
       
-      console.log('Registros procesados:', processedData.length);
-      console.log('Primeros 3 registros:', processedData.slice(0, 3));
-
       const cleanedData = cleanDividendData(processedData);
       
       if (cleanedData.length === 0) {
@@ -270,7 +255,6 @@ const FileUpload: React.FC = () => {
       setLoading(false);
       
     } catch (err) {
-      console.error('Error procesando hoja:', err);
       setError(`Error al procesar la hoja: ${err instanceof Error ? err.message : 'Error desconocido'}`);
       setLoading(false);
     }
@@ -286,6 +270,13 @@ const FileUpload: React.FC = () => {
     
     processSheet(workbook, sheetIndex);
   };
+
+  // Datos que se pasan a las vistas: filtrados si hay filtros activos, sino los datos completos
+  const displayData = useMemo(() => filteredData ?? data, [filteredData, data]);
+
+  const handleFiltersChange = useCallback((filtered: DividendData[]) => {
+    setFilteredData(filtered);
+  }, []);
 
   return (
     <Container maxWidth={false} sx={{ px: 0, width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
@@ -419,16 +410,16 @@ const FileUpload: React.FC = () => {
             <Box sx={{ width: '100%', mb: 2 }}>
               <AdvancedFilters 
                 data={data} 
-                onFiltersChange={setFilteredData}
+                onFiltersChange={handleFiltersChange}
               />
             </Box>
           )}
           
           <Box sx={{ width: '100%' }}>
             {view === 'dashboard' && <Dashboard data={data} />}
-            {view === 'table' && <DividendTable data={filteredData.length > 0 ? filteredData : data} />}
-            {view === 'dateTable' && <DateAccumulatedTable data={filteredData.length > 0 ? filteredData : data} />}
-            {view === 'chart' && <AccumulatedChart data={filteredData.length > 0 ? filteredData : data} />}
+            {view === 'table' && <DividendTable data={displayData} />}
+            {view === 'dateTable' && <DateAccumulatedTable data={displayData} />}
+            {view === 'chart' && <AccumulatedChart data={displayData} />}
             {view === 'predictions' && <PredictionsPanel data={data} />}
           </Box>
         </Box>

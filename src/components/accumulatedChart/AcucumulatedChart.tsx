@@ -10,7 +10,7 @@ import {
   Tooltip,
   ChartOptions 
 } from 'chart.js';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Line } from 'react-chartjs-2';
 import { DividendData } from '../../types/dividend';
 import { parseExcelDate, formatDate } from '../../utils/dateUtils';
@@ -120,7 +120,15 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
     };
   }, [processedData, currency, chartType]);
 
-  const chartOptions: ChartOptions<'line'> = {
+  const handleChartTypeChange = useCallback((_: React.MouseEvent<HTMLElement>, newType: string | null) => {
+    if (newType) setChartType(newType as 'monthly' | 'cumulative');
+  }, []);
+
+  const handleCurrencyChange = useCallback((_: React.MouseEvent<HTMLElement>, newCurrency: string | null) => {
+    if (newCurrency) setCurrency(newCurrency as 'USD' | 'EUR' | 'both');
+  }, []);
+
+  const chartOptions: ChartOptions<'line'> = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -139,7 +147,8 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
         callbacks: {
           label: function(context) {
             const currencySymbol = context.dataset.label?.includes('USD') ? '$' : '€';
-            const value = context.parsed.y.toLocaleString('en-US', { 
+            const rawValue = context.parsed.y ?? 0;
+            const value = rawValue.toLocaleString('en-US', { 
               minimumFractionDigits: 2, 
               maximumFractionDigits: 2 
             });
@@ -190,7 +199,7 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
         hoverRadius: 6,
       }
     }
-  };
+  }), [currency, chartType]);
 
   const currentTotals = useMemo(() => {
     if (processedData.length === 0) return { USD: 0, EUR: 0 };
@@ -213,7 +222,7 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
           <ToggleButtonGroup
             value={chartType}
             exclusive
-            onChange={(_, newType) => newType && setChartType(newType)}
+            onChange={handleChartTypeChange}
             size="small"
           >
             <ToggleButton value="monthly">Por Fecha</ToggleButton>
@@ -224,7 +233,7 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
           <ToggleButtonGroup
             value={currency}
             exclusive
-            onChange={(_, newCurrency) => newCurrency && setCurrency(newCurrency)}
+            onChange={handleCurrencyChange}
             size="small"
           >
             <ToggleButton value="USD">USD</ToggleButton>
