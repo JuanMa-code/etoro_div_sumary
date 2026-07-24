@@ -6,13 +6,17 @@ import { DividendData } from '../types/dividend';
  * Also handles Excel serial date numbers
  */
 export const parseExcelDate = (dateStr: string | number): Date => {
-  if (!dateStr) return new Date();
-  
-  // If it's already a number (Excel serial date), convert it
+  if (dateStr === null || dateStr === undefined || dateStr === '') return new Date();
+
+  // If it's already a number (Excel serial date), convert it.
+  // El serial se ancla a UTC, así que se reconstruye desde las partes UTC
+  // para no desplazar un día en zonas con offset negativo.
   if (typeof dateStr === 'number') {
-    return new Date((dateStr - 25569) * 86400 * 1000);
+    const utc = new Date(Math.round((dateStr - 25569) * 86400 * 1000));
+    if (isNaN(utc.getTime())) return new Date();
+    return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
   }
-  
+
   // Clean the string
   const cleanDateStr = dateStr.toString().trim();
   
@@ -59,6 +63,34 @@ export const formatDate = (date: Date): string => {
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
 };
+
+/**
+ * Formats a date to YYYY-MM-DD using local parts, for <input type="date">.
+ * No se usa toISOString() porque convierte a UTC y puede restar un día.
+ */
+export const toDateInputValue = (date: Date): string => {
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+};
+
+/**
+ * Parses a YYYY-MM-DD value from <input type="date"> as local midnight.
+ * new Date('YYYY-MM-DD') lo interpreta como UTC, lo que descuadra las
+ * comparaciones contra fechas construidas en hora local.
+ */
+export const parseDateInputValue = (value: string): Date | null => {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return isNaN(date.getTime()) ? null : date;
+};
+
+/**
+ * Returns the last representable instant of the given day, in local time
+ */
+export const endOfDay = (date: Date): Date =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
 
 /**
  * Validates dividend data structure

@@ -29,7 +29,7 @@ import {
   Business
 } from '@mui/icons-material';
 import { DividendData } from '../../types/dividend';
-import { parseExcelDate } from '../../utils/dateUtils';
+import { parseExcelDate, endOfDay, toDateInputValue, parseDateInputValue } from '../../utils/dateUtils';
 import { getNameByLongName } from '../Parser';
 
 interface FilterOptions {
@@ -43,7 +43,6 @@ interface FilterOptions {
     min: number;
     max: number;
   };
-  currencies: ('USD' | 'EUR')[];
   sortBy: 'date' | 'amount' | 'company';
   sortOrder: 'asc' | 'desc';
 }
@@ -58,8 +57,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
     searchTerm: '',
     selectedCompanies: [],
     dateRange: { start: null, end: null },
-    amountRange: { min: 0, max: 1000 },
-    currencies: ['USD', 'EUR'],
+    amountRange: { min: 0, max: 0 },
     sortBy: 'date',
     sortOrder: 'desc'
   });
@@ -68,7 +66,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
 
   // Calcular opciones disponibles
   const availableOptions = useMemo(() => {
-    if (data.length === 0) return { companies: [], amountRange: { min: 0, max: 1000 } };
+    if (data.length === 0) return { companies: [], amountRange: { min: 0, max: 0 } };
 
     const companies = Array.from(new Set(data.map(item => item['Nombre del instrumento'])))
       .sort()
@@ -78,14 +76,24 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
         fullName: company
       }));
 
-    const amounts = data.map(item => item['Dividendo neto recibido (USD)']);
-    const amountRange = {
-      min: Math.floor(Math.min(...amounts)),
-      max: Math.ceil(Math.max(...amounts))
-    };
+    // Se recorre con reduce en vez de Math.min(...amounts) para no desbordar
+    // la pila de llamadas con ficheros de muchas filas.
+    let min = Infinity;
+    let max = -Infinity;
+    for (const item of data) {
+      const amount = item['Dividendo neto recibido (USD)'];
+      if (amount < min) min = amount;
+      if (amount > max) max = amount;
+    }
 
-    return { companies, amountRange };
+    return { companies, amountRange: { min: Math.floor(min), max: Math.ceil(max) } };
   }, [data]);
+
+  // El rango de importes debe seguir a los datos cargados: si se quedara en un
+  // valor fijo, los dividendos fuera de ese rango se descartarían en silencio.
+  React.useEffect(() => {
+    setFilters(prev => ({ ...prev, amountRange: availableOptions.amountRange }));
+  }, [availableOptions.amountRange]);
 
   // Aplicar filtros
   const filteredData = useMemo(() => {
@@ -108,24 +116,29 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
       );
     }
 
-    // Filtro de fechas
+    // Filtro de fechas: el límite superior es el final del día para que los
+    // pagos de la propia fecha "fin" queden incluidos.
     if (filters.dateRange.start || filters.dateRange.end) {
+      const start = filters.dateRange.start;
+      const end = filters.dateRange.end ? endOfDay(filters.dateRange.end) : null;
+
       result = result.filter(item => {
         const itemDate = parseExcelDate(item['Fecha de pago']);
-        const start = filters.dateRange.start;
-        const end = filters.dateRange.end;
-        
         if (start && itemDate < start) return false;
         if (end && itemDate > end) return false;
         return true;
       });
     }
 
-    // Filtro de montos
-    result = result.filter(item => {
-      const amount = item['Dividendo neto recibido (USD)'];
-      return amount >= filters.amountRange.min && amount <= filters.amountRange.max;
-    });
+    // Filtro de montos: sólo se aplica si el usuario ha estrechado el rango,
+    // para no descartar registros con el rango completo por defecto.
+    const { min: availableMin, max: availableMax } = availableOptions.amountRange;
+    if (filters.amountRange.min > availableMin || filters.amountRange.max < availableMax) {
+      result = result.filter(item => {
+        const amount = item['Dividendo neto recibido (USD)'];
+        return amount >= filters.amountRange.min && amount <= filters.amountRange.max;
+      });
+    }
 
     // Ordenar
     result.sort((a, b) => {
@@ -157,7 +170,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
     });
 
     return result;
-  }, [data, filters]);
+  }, [data, filters, availableOptions.amountRange]);
 
   // Notificar cambios
   React.useEffect(() => {
@@ -174,7 +187,6 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
       selectedCompanies: [],
       dateRange: { start: null, end: null },
       amountRange: { min: availableOptions.amountRange.min, max: availableOptions.amountRange.max },
-      currencies: ['USD', 'EUR'],
       sortBy: 'date',
       sortOrder: 'desc'
     });
@@ -321,11 +333,11 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
                 <TextField
                   label="Fecha inicio (DD/MM/YYYY)"
                   type="date"
-                  value={filters.dateRange.start ? filters.dateRange.start.toISOString().split('T')[0] : ''}
-                  onChange={(e) => 
-                    handleFilterChange('dateRange', { 
-                      ...filters.dateRange, 
-                      start: e.target.value ? new Date(e.target.value) : null 
+                  value={filters.dateRange.start ? toDateInputValue(filters.dateRange.start) : ''}
+                  onChange={(e) =>
+                    handleFilterChange('dateRange', {
+                      ...filters.dateRange,
+                      start: parseDateInputValue(e.target.value)
                     })
                   }
                   size="small"
@@ -334,11 +346,11 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
                 <TextField
                   label="Fecha fin (DD/MM/YYYY)"
                   type="date"
-                  value={filters.dateRange.end ? filters.dateRange.end.toISOString().split('T')[0] : ''}
-                  onChange={(e) => 
-                    handleFilterChange('dateRange', { 
-                      ...filters.dateRange, 
-                      end: e.target.value ? new Date(e.target.value) : null 
+                  value={filters.dateRange.end ? toDateInputValue(filters.dateRange.end) : ''}
+                  onChange={(e) =>
+                    handleFilterChange('dateRange', {
+                      ...filters.dateRange,
+                      end: parseDateInputValue(e.target.value)
                     })
                   }
                   size="small"
@@ -366,6 +378,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
                 valueLabelDisplay="auto"
                 min={availableOptions.amountRange.min}
                 max={availableOptions.amountRange.max}
+                disabled={availableOptions.amountRange.min >= availableOptions.amountRange.max}
                 step={0.01}
                 valueLabelFormat={(value) => `$${value.toFixed(2)}`}
               />
