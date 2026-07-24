@@ -93,12 +93,20 @@ const FileUpload: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Permite volver a seleccionar el mismo fichero: sin limpiar el input,
+    // el change no se dispara la segunda vez. El File ya esta capturado.
+    event.target.value = '';
+
     setError(null);
     setSuccess(null);
     setLoading(true);
     setData([]);
+    // Sin esto, los filtros del fichero anterior seguian aplicandose y las
+    // vistas de tabla y grafico mostraban datos que ya no correspondian.
+    setFilteredData(null);
     setAvailableSheets([]);
     setSelectedSheet(0);
+    setWorkbook(null);
 
     // Validate file type
     const validTypes = [
@@ -267,6 +275,7 @@ const FileUpload: React.FC = () => {
     setLoading(true);
     setError(null);
     setSuccess(null);
+    setFilteredData(null);
     
     processSheet(workbook, sheetIndex);
   };
