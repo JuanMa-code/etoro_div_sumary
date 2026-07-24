@@ -51,19 +51,20 @@ const DateAccumulatedTable: React.FC<Props> = ({ data }) => {
     );
 
     // Calculate cumulative totals
+    const dataWithCumulative: DateAccumulatedData[] = [];
     let cumulativeUSD = 0;
     let cumulativeEUR = 0;
-    
-    const dataWithCumulative = sortedByDate.map(item => {
+
+    for (const item of sortedByDate) {
       cumulativeUSD += item.totalUSD;
       cumulativeEUR += item.totalEUR;
-      
-      return {
+
+      dataWithCumulative.push({
         ...item,
         cumulativeUSD,
         cumulativeEUR,
-      };
-    });
+      });
+    }
 
     // Apply user sorting
     return dataWithCumulative.sort((a, b) => {

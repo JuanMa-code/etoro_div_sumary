@@ -48,20 +48,23 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
     );
 
     // Calculate cumulative totals
+    const withCumulative = [];
     let cumulativeUSD = 0;
     let cumulativeEUR = 0;
-    
-    return sortedData.map(item => {
+
+    for (const item of sortedData) {
       cumulativeUSD += item.totalUSD;
       cumulativeEUR += item.totalEUR;
-      
-      return {
+
+      withCumulative.push({
         ...item,
         cumulativeUSD,
         cumulativeEUR,
         formattedDate: formatDate(item.fechaFormatted)
-      };
-    });
+      });
+    }
+
+    return withCumulative;
   }, [data]);
 
   const chartData = useMemo(() => {

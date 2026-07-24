@@ -39,9 +39,10 @@ interface FilterOptions {
     start: Date | null;
     end: Date | null;
   };
+  // null significa "sin acotar por el usuario": se usa el extremo de los datos.
   amountRange: {
-    min: number;
-    max: number;
+    min: number | null;
+    max: number | null;
   };
   sortBy: 'date' | 'amount' | 'company';
   sortOrder: 'asc' | 'desc';
@@ -57,7 +58,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
     searchTerm: '',
     selectedCompanies: [],
     dateRange: { start: null, end: null },
-    amountRange: { min: 0, max: 0 },
+    amountRange: { min: null, max: null },
     sortBy: 'date',
     sortOrder: 'desc'
   });
@@ -89,11 +90,13 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
     return { companies, amountRange: { min: Math.floor(min), max: Math.ceil(max) } };
   }, [data]);
 
-  // El rango de importes debe seguir a los datos cargados: si se quedara en un
-  // valor fijo, los dividendos fuera de ese rango se descartarían en silencio.
-  React.useEffect(() => {
-    setFilters(prev => ({ ...prev, amountRange: availableOptions.amountRange }));
-  }, [availableOptions.amountRange]);
+  // El rango efectivo se deriva de los datos cargados en lugar de guardarse en
+  // estado: si se quedara en un valor fijo, los dividendos fuera de ese rango
+  // se descartarían en silencio al cambiar de fichero.
+  const effectiveAmountRange = useMemo(() => ({
+    min: filters.amountRange.min ?? availableOptions.amountRange.min,
+    max: filters.amountRange.max ?? availableOptions.amountRange.max
+  }), [filters.amountRange, availableOptions.amountRange]);
 
   // Aplicar filtros
   const filteredData = useMemo(() => {
@@ -132,11 +135,11 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
 
     // Filtro de montos: sólo se aplica si el usuario ha estrechado el rango,
     // para no descartar registros con el rango completo por defecto.
-    const { min: availableMin, max: availableMax } = availableOptions.amountRange;
-    if (filters.amountRange.min > availableMin || filters.amountRange.max < availableMax) {
+    if (filters.amountRange.min !== null || filters.amountRange.max !== null) {
+      const { min, max } = effectiveAmountRange;
       result = result.filter(item => {
         const amount = item['Dividendo neto recibido (USD)'];
-        return amount >= filters.amountRange.min && amount <= filters.amountRange.max;
+        return amount >= min && amount <= max;
       });
     }
 
@@ -170,7 +173,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
     });
 
     return result;
-  }, [data, filters, availableOptions.amountRange]);
+  }, [data, filters, effectiveAmountRange]);
 
   // Notificar cambios
   React.useEffect(() => {
@@ -186,7 +189,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
       searchTerm: '',
       selectedCompanies: [],
       dateRange: { start: null, end: null },
-      amountRange: { min: availableOptions.amountRange.min, max: availableOptions.amountRange.max },
+      amountRange: { min: null, max: null },
       sortBy: 'date',
       sortOrder: 'desc'
     });
@@ -196,7 +199,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
     filters.searchTerm !== '',
     filters.selectedCompanies.length > 0,
     filters.dateRange.start !== null || filters.dateRange.end !== null,
-    filters.amountRange.min !== availableOptions.amountRange.min || filters.amountRange.max !== availableOptions.amountRange.max
+    filters.amountRange.min !== null || filters.amountRange.max !== null
   ].filter(Boolean).length;
 
   return (
@@ -364,11 +367,11 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
               <Box display="flex" alignItems="center" gap={1} mb={2}>
                 <AttachMoney fontSize="small" />
                 <Typography variant="subtitle2">
-                  Rango de montos (USD): ${filters.amountRange.min} - ${filters.amountRange.max}
+                  Rango de montos (USD): ${effectiveAmountRange.min} - ${effectiveAmountRange.max}
                 </Typography>
               </Box>
               <Slider
-                value={[filters.amountRange.min, filters.amountRange.max]}
+                value={[effectiveAmountRange.min, effectiveAmountRange.max]}
                 onChange={(_, newValue) => 
                   handleFilterChange('amountRange', { 
                     min: (newValue as number[])[0], 
