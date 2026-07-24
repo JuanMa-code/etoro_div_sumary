@@ -85,9 +85,11 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
     const { slope, confidence } = calculateTrend();
     const trend = slope > 5 ? 'bullish' : slope < -5 ? 'bearish' : 'neutral';
 
-    // Calcular promedio mensual de los últimos 3 meses
+    // Calcular promedio mensual de los últimos 3 meses (o los que haya)
     const recent3Months = sortedMonths.slice(-3);
-    const avgMonthly = recent3Months.reduce((sum, item) => sum + item.total, 0) / 3;
+    const avgMonthly = recent3Months.length > 0
+      ? recent3Months.reduce((sum, item) => sum + item.total, 0) / recent3Months.length
+      : 0;
 
     // Predicciones
     const nextQuarterEstimate = Math.max(0, avgMonthly * 3 + (slope * 3));
@@ -96,10 +98,10 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
     // Patrón estacional
     const seasonalPattern = Array.from({ length: 12 }, (_, month) => {
       const monthData = sortedMonths.filter(item => item.month === month);
-      const monthAvg = monthData.length > 0 
-        ? monthData.reduce((sum, item) => sum + item.total, 0) / monthData.length 
+      const monthAvg = monthData.length > 0
+        ? monthData.reduce((sum, item) => sum + item.total, 0) / monthData.length
         : avgMonthly;
-      const multiplier = monthAvg / avgMonthly;
+      const multiplier = avgMonthly > 0 ? monthAvg / avgMonthly : 1;
       return { month, multiplier };
     });
 
@@ -117,23 +119,32 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
       return acc;
     }, {} as Record<string, { amounts: number[]; dates: Date[] }>);
 
+    // Se exige historial suficiente para tener ventana reciente y anterior:
+    // con 3 pagos o menos el bloque "anterior" queda vacío y el crecimiento
+    // salía Infinity, que superaba el filtro isNaN y copaba el top.
     const topGrowthCompanies = Object.entries(companyGrowth)
       .map(([name, data]) => {
-        if (data.amounts.length < 2) return { name, growth: 0, prediction: 0 };
-        
-        const recent = data.amounts.slice(-3).reduce((sum, amt) => sum + amt, 0) / 3;
-        const older = data.amounts.slice(0, -3).reduce((sum, amt) => sum + amt, 0) / Math.max(1, data.amounts.length - 3);
+        const recentWindow = data.amounts.slice(-3);
+        const olderWindow = data.amounts.slice(0, -3);
+
+        if (olderWindow.length === 0) return { name, growth: 0, prediction: 0 };
+
+        const recent = recentWindow.reduce((sum, amt) => sum + amt, 0) / recentWindow.length;
+        const older = olderWindow.reduce((sum, amt) => sum + amt, 0) / olderWindow.length;
+
+        if (older === 0) return { name, growth: 0, prediction: recent };
+
         const growth = ((recent - older) / older) * 100;
         const prediction = recent * (1 + growth / 100);
-        
+
         return { name, growth, prediction };
       })
-      .filter(item => !isNaN(item.growth))
+      .filter(item => Number.isFinite(item.growth) && Number.isFinite(item.prediction))
       .sort((a, b) => b.growth - a.growth)
       .slice(0, 5);
 
     // Nivel de riesgo basado en volatilidad
-    const volatility = sortedMonths.length > 1 
+    const volatility = sortedMonths.length > 1 && avgMonthly > 0
       ? Math.sqrt(sortedMonths.reduce((sum, item) => {
           const diff = item.total - avgMonthly;
           return sum + diff * diff;
@@ -168,16 +179,24 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
 
     const labels = sortedData.map(([key]) => key);
     const values = sortedData.map(([, value]) => value);
-    
-    // Agregar predicciones
-    const lastMonth = new Date();
+
+    // Las predicciones continúan desde el último mes con datos, no desde hoy:
+    // con un fichero antiguo las etiquetas dejaban un hueco o se solapaban.
+    const lastLabel = labels[labels.length - 1];
+    const [lastYear, lastMonthNumber] = lastLabel
+      ? lastLabel.split('-').map(Number)
+      : [new Date().getFullYear(), new Date().getMonth() + 1];
+
     const nextMonths = [];
     for (let i = 1; i <= 3; i++) {
-      const nextMonth = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + i, 1);
+      const nextMonth = new Date(lastYear, lastMonthNumber - 1 + i, 1);
       nextMonths.push(`${nextMonth.getFullYear()}-${(nextMonth.getMonth() + 1).toString().padStart(2, '0')}`);
     }
 
-    const avgLast3 = values.slice(-3).reduce((sum, val) => sum + val, 0) / 3;
+    const recentValues = values.slice(-3);
+    const avgLast3 = recentValues.length > 0
+      ? recentValues.reduce((sum, val) => sum + val, 0) / recentValues.length
+      : 0;
     const predictedValues = nextMonths.map(() => avgLast3 * 1.05); // 5% crecimiento estimado
 
     return {
