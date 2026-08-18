@@ -1,0 +1,40 @@
+# Agrupa las actualizaciones en pocas PRs semanales en vez de una PR por paquete.
+# El grueso de las alertas de este repo son dependencias de desarrollo
+# (eslint, vite y sus transitivas): no viajan al bundle publicado en Pages.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      produccion-seguridad:
+        applies-to: security-updates
+        dependency-type: "production"
+        patterns: ["*"]
+      produccion:
+        applies-to: version-updates
+        dependency-type: "production"
+        patterns: ["*"]
+      desarrollo-seguridad:
+        applies-to: security-updates
+        dependency-type: "development"
+        patterns: ["*"]
+      desarrollo:
+        applies-to: version-updates
+        dependency-type: "development"
+        patterns: ["*"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]

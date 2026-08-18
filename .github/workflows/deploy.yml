@@ -17,9 +17,18 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'npm'
 
     - name: Install dependencies
-      run: npm install
+      run: npm ci
+
+    # Solo bloquea el despliegue si la vulnerabilidad afecta a codigo que
+    # acaba en el bundle. Las de herramientas de build (eslint, vite) no.
+    - name: Audit production dependencies
+      run: npm audit --omit=dev --audit-level=high
+
+    - name: Lint
+      run: npm run lint
 
     - name: Build the project
       run: npm run build
