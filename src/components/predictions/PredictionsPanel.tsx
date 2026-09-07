@@ -18,9 +18,10 @@ import {
   Timeline,
   Info
 } from '@mui/icons-material';
+import { ChartData } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { DividendData } from '../../types/dividend';
-import { parseExcelDate } from '../../utils/dateUtils';
+import { parseExcelDate, toMonthKey, average } from '../../utils/dateUtils';
 
 interface Props {
   data: DividendData[];
@@ -36,60 +37,86 @@ interface PredictionData {
   riskLevel: 'low' | 'medium' | 'high';
 }
 
+interface ParsedRow {
+  company: string;
+  date: Date;
+  monthKey: string;
+  month: number;
+  amount: number;
+}
+
+const EMPTY_PREDICTIONS: PredictionData = {
+  nextQuarterEstimate: 0,
+  nextYearEstimate: 0,
+  trend: 'neutral',
+  confidence: 0,
+  seasonalPattern: [],
+  topGrowthCompanies: [],
+  riskLevel: 'low'
+};
+
+const MIN_ROWS = 3;
+
 const PredictionsPanel: React.FC<Props> = ({ data }) => {
+  // Cada fila se parsea una sola vez y se ordena cronológicamente: el fichero
+  // de eToro llega de más reciente a más antiguo y los cálculos de ventana
+  // (últimos N pagos, últimos N meses) necesitan el orden real.
+  const rows = useMemo((): ParsedRow[] =>
+    data
+      .map(item => {
+        const date = parseExcelDate(item['Fecha de pago']);
+        return {
+          company: item['Nombre del instrumento'],
+          date,
+          monthKey: toMonthKey(date),
+          month: date.getMonth(),
+          amount: item['Dividendo neto recibido (USD)']
+        };
+      })
+      .sort((a, b) => a.date.getTime() - b.date.getTime()),
+  [data]);
+
   const predictions = useMemo((): PredictionData => {
-    if (data.length < 3) {
-      return {
-        nextQuarterEstimate: 0,
-        nextYearEstimate: 0,
-        trend: 'neutral',
-        confidence: 0,
-        seasonalPattern: [],
-        topGrowthCompanies: [],
-        riskLevel: 'low'
-      };
+    if (rows.length < MIN_ROWS) return EMPTY_PREDICTIONS;
+
+    // Agrupar datos por mes. La clave YYYY-MM va con relleno de ceros, así
+    // que ordenar las claves como texto equivale a ordenar cronológicamente.
+    const monthlyData = new Map<string, { total: number; count: number; month: number }>();
+    for (const row of rows) {
+      const bucket = monthlyData.get(row.monthKey);
+      if (bucket) {
+        bucket.total += row.amount;
+        bucket.count += 1;
+      } else {
+        monthlyData.set(row.monthKey, { total: row.amount, count: 1, month: row.month });
+      }
     }
 
-    // Agrupar datos por mes
-    const monthlyData = data.reduce((acc, item) => {
-      const date = parseExcelDate(item['Fecha de pago']);
-      const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
-      if (!acc[monthKey]) {
-        acc[monthKey] = { total: 0, count: 0, month: date.getMonth() };
-      }
-      acc[monthKey].total += item['Dividendo neto recibido (USD)'];
-      acc[monthKey].count += 1;
-      return acc;
-    }, {} as Record<string, { total: number; count: number; month: number }>);
-
-    const sortedMonths = Object.entries(monthlyData)
+    const sortedMonths = [...monthlyData.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([key, value]) => ({ key, ...value }));
 
     // Calcular tendencia usando regresión lineal simple
     const calculateTrend = () => {
       if (sortedMonths.length < 2) return { slope: 0, confidence: 0 };
-      
+
       const n = sortedMonths.length;
       const sumX = sortedMonths.reduce((sum, _, i) => sum + i, 0);
       const sumY = sortedMonths.reduce((sum, item) => sum + item.total, 0);
       const sumXY = sortedMonths.reduce((sum, item, i) => sum + i * item.total, 0);
       const sumXX = sortedMonths.reduce((sum, _, i) => sum + i * i, 0);
-      
+
       const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
       const confidence = Math.min(95, Math.abs(slope) * 10 + (n / 12) * 20);
-      
+
       return { slope, confidence };
     };
 
     const { slope, confidence } = calculateTrend();
     const trend = slope > 5 ? 'bullish' : slope < -5 ? 'bearish' : 'neutral';
 
-    // Calcular promedio mensual de los últimos 3 meses (o los que haya)
-    const recent3Months = sortedMonths.slice(-3);
-    const avgMonthly = recent3Months.length > 0
-      ? recent3Months.reduce((sum, item) => sum + item.total, 0) / recent3Months.length
-      : 0;
+    // Promedio mensual de los últimos 3 meses (o los que haya)
+    const avgMonthly = average(sortedMonths.slice(-3).map(item => item.total));
 
     // Predicciones
     const nextQuarterEstimate = Math.max(0, avgMonthly * 3 + (slope * 3));
@@ -99,47 +126,37 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
     const seasonalPattern = Array.from({ length: 12 }, (_, month) => {
       const monthData = sortedMonths.filter(item => item.month === month);
       const monthAvg = monthData.length > 0
-        ? monthData.reduce((sum, item) => sum + item.total, 0) / monthData.length
+        ? average(monthData.map(item => item.total))
         : avgMonthly;
       const multiplier = avgMonthly > 0 ? monthAvg / avgMonthly : 1;
       return { month, multiplier };
     });
 
-    // Top empresas con crecimiento
-    const companyGrowth = data.reduce((acc, item) => {
-      const company = item['Nombre del instrumento'];
-      const date = parseExcelDate(item['Fecha de pago']);
-      const amount = item['Dividendo neto recibido (USD)'];
-      
-      if (!acc[company]) {
-        acc[company] = { amounts: [], dates: [] };
+    // Historial de pagos por empresa, ya en orden cronológico porque rows lo está.
+    const amountsByCompany = new Map<string, number[]>();
+    for (const row of rows) {
+      const amounts = amountsByCompany.get(row.company);
+      if (amounts) {
+        amounts.push(row.amount);
+      } else {
+        amountsByCompany.set(row.company, [row.amount]);
       }
-      acc[company].amounts.push(amount);
-      acc[company].dates.push(date);
-      return acc;
-    }, {} as Record<string, { amounts: number[]; dates: Date[] }>);
+    }
 
-    // Se exige historial suficiente para tener ventana reciente y anterior:
-    // con 3 pagos o menos el bloque "anterior" queda vacío y el crecimiento
-    // salía Infinity, que superaba el filtro isNaN y copaba el top.
-    const topGrowthCompanies = Object.entries(companyGrowth)
-      .map(([name, data]) => {
-        const recentWindow = data.amounts.slice(-3);
-        const olderWindow = data.amounts.slice(0, -3);
+    // Una empresa necesita pagos a ambos lados de la ventana de 3 para tener
+    // crecimiento calculable; las demás se omiten en vez de aparecer con 0%.
+    const topGrowthCompanies = [...amountsByCompany.entries()]
+      .flatMap(([name, amounts]) => {
+        const olderWindow = amounts.slice(0, -3);
+        if (olderWindow.length === 0) return [];
 
-        if (olderWindow.length === 0) return { name, growth: 0, prediction: 0 };
-
-        const recent = recentWindow.reduce((sum, amt) => sum + amt, 0) / recentWindow.length;
-        const older = olderWindow.reduce((sum, amt) => sum + amt, 0) / olderWindow.length;
-
-        if (older === 0) return { name, growth: 0, prediction: recent };
+        const recent = average(amounts.slice(-3));
+        const older = average(olderWindow);
+        if (older === 0) return [];
 
         const growth = ((recent - older) / older) * 100;
-        const prediction = recent * (1 + growth / 100);
-
-        return { name, growth, prediction };
+        return [{ name, growth, prediction: recent * (1 + growth / 100) }];
       })
-      .filter(item => Number.isFinite(item.growth) && Number.isFinite(item.prediction))
       .sort((a, b) => b.growth - a.growth)
       .slice(0, 5);
 
@@ -162,18 +179,18 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
       topGrowthCompanies,
       riskLevel
     };
-  }, [data]);
+  }, [rows]);
 
   // Datos para el gráfico de predicción
-  const chartData = useMemo(() => {
-    const monthlyTotals = data.reduce((acc, item) => {
-      const date = parseExcelDate(item['Fecha de pago']);
-      const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-      acc[monthKey] = (acc[monthKey] || 0) + item['Dividendo neto recibido (USD)'];
-      return acc;
-    }, {} as Record<string, number>);
+  const chartData = useMemo((): ChartData<'line', (number | null)[], string> => {
+    if (rows.length < MIN_ROWS) return { labels: [], datasets: [] };
 
-    const sortedData = Object.entries(monthlyTotals)
+    const monthlyTotals = new Map<string, number>();
+    for (const row of rows) {
+      monthlyTotals.set(row.monthKey, (monthlyTotals.get(row.monthKey) ?? 0) + row.amount);
+    }
+
+    const sortedData = [...monthlyTotals.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .slice(-12); // Últimos 12 meses
 
@@ -182,21 +199,13 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
 
     // Las predicciones continúan desde el último mes con datos, no desde hoy:
     // con un fichero antiguo las etiquetas dejaban un hueco o se solapaban.
-    const lastLabel = labels[labels.length - 1];
-    const [lastYear, lastMonthNumber] = lastLabel
-      ? lastLabel.split('-').map(Number)
-      : [new Date().getFullYear(), new Date().getMonth() + 1];
-
-    const nextMonths = [];
+    const [lastYear, lastMonthNumber] = labels[labels.length - 1].split('-').map(Number);
+    const nextMonths: string[] = [];
     for (let i = 1; i <= 3; i++) {
-      const nextMonth = new Date(lastYear, lastMonthNumber - 1 + i, 1);
-      nextMonths.push(`${nextMonth.getFullYear()}-${(nextMonth.getMonth() + 1).toString().padStart(2, '0')}`);
+      nextMonths.push(toMonthKey(new Date(lastYear, lastMonthNumber - 1 + i, 1)));
     }
 
-    const recentValues = values.slice(-3);
-    const avgLast3 = recentValues.length > 0
-      ? recentValues.reduce((sum, val) => sum + val, 0) / recentValues.length
-      : 0;
+    const avgLast3 = average(values.slice(-3));
     const predictedValues = nextMonths.map(() => avgLast3 * 1.05); // 5% crecimiento estimado
 
     return {
@@ -204,7 +213,7 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
       datasets: [
         {
           label: 'Dividendos Históricos',
-          data: [...values, ...Array(3).fill(null)],
+          data: [...values, ...nextMonths.map(() => null)],
           borderColor: 'rgba(54, 162, 235, 1)',
           backgroundColor: 'rgba(54, 162, 235, 0.1)',
           fill: false,
@@ -212,7 +221,7 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
         },
         {
           label: 'Predicción',
-          data: [...Array(values.length).fill(null), ...predictedValues],
+          data: [...values.map(() => null), ...predictedValues],
           borderColor: 'rgba(255, 159, 64, 1)',
           backgroundColor: 'rgba(255, 159, 64, 0.1)',
           borderDash: [5, 5],
@@ -221,9 +230,9 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
         }
       ]
     };
-  }, [data]);
+  }, [rows]);
 
-  if (data.length < 3) {
+  if (data.length < MIN_ROWS) {
     return (
       <Alert severity="info" sx={{ mt: 2 }}>
         <Typography variant="body2">
@@ -253,7 +262,7 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
                   </IconButton>
                 </Tooltip>
               </Box>
-              
+
               <Box mb={2}>
                 <Typography variant="body2" color="text.secondary">
                   Próximo trimestre
@@ -262,7 +271,7 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
                   ${predictions.nextQuarterEstimate.toFixed(2)}
                 </Typography>
               </Box>
-              
+
               <Box mb={2}>
                 <Typography variant="body2" color="text.secondary">
                   Próximo año
@@ -280,7 +289,7 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
                 ) : (
                   <Timeline color="warning" />
                 )}
-                <Chip 
+                <Chip
                   label={
                     predictions.trend === 'bullish' ? 'Tendencia Alcista' :
                     predictions.trend === 'bearish' ? 'Tendencia Bajista' :
@@ -305,12 +314,12 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
               <Typography variant="h6" gutterBottom>
                 📊 Análisis de Riesgo
               </Typography>
-              
+
               <Box mb={2}>
                 <Typography variant="body2" color="text.secondary" mb={1}>
                   Nivel de riesgo de la cartera
                 </Typography>
-                <Chip 
+                <Chip
                   label={
                     predictions.riskLevel === 'low' ? 'Bajo Riesgo' :
                     predictions.riskLevel === 'medium' ? 'Riesgo Moderado' :
@@ -328,8 +337,8 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
                 <Typography variant="body2" color="text.secondary" mb={1}>
                   Confianza en predicciones
                 </Typography>
-                <LinearProgress 
-                  variant="determinate" 
+                <LinearProgress
+                  variant="determinate"
                   value={predictions.confidence}
                   sx={{ height: 8, borderRadius: 4 }}
                 />
@@ -352,16 +361,22 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
               <Typography variant="h6" gutterBottom>
                 🚀 Top Crecimiento
               </Typography>
-              
+
+              {predictions.topGrowthCompanies.length === 0 && (
+                <Typography variant="body2" color="text.secondary">
+                  Aún no hay empresas con historial suficiente (más de 3 pagos).
+                </Typography>
+              )}
+
               {predictions.topGrowthCompanies.slice(0, 3).map((company) => (
                 <Box key={company.name} mb={1}>
                   <Typography variant="body2" noWrap title={company.name}>
-                    {company.name.length > 20 
+                    {company.name.length > 20
                       ? `${company.name.substring(0, 20)}...`
                       : company.name}
                   </Typography>
                   <Box display="flex" justifyContent="space-between" alignItems="center">
-                    <Chip 
+                    <Chip
                       label={`${company.growth > 0 ? '+' : ''}${company.growth.toFixed(1)}%`}
                       color={company.growth > 0 ? 'success' : 'error'}
                       size="small"
@@ -384,8 +399,8 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
                 📈 Proyección de Dividendos
               </Typography>
               <Box height={300}>
-                <Line 
-                  data={chartData} 
+                <Line
+                  data={chartData}
                   options={{
                     responsive: true,
                     maintainAspectRatio: false,

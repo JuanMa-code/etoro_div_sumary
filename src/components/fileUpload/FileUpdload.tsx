@@ -44,6 +44,9 @@ const FileUpload: React.FC = () => {
   const [selectedSheet, setSelectedSheet] = useState<number>(0);
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
+  // Se incrementa con cada hoja procesada con éxito; ver el key del subárbol
+  // de filtros y vistas más abajo.
+  const [datasetId, setDatasetId] = useState(0);
 
   // Atajos de teclado
   const shortcuts = useMemo(() => [
@@ -99,33 +102,31 @@ const FileUpload: React.FC = () => {
 
     setError(null);
     setSuccess(null);
-    setLoading(true);
-    setData([]);
-    // Sin esto, los filtros del fichero anterior seguian aplicandose y las
-    // vistas de tabla y grafico mostraban datos que ya no correspondian.
-    setFilteredData(null);
-    setAvailableSheets([]);
-    setSelectedSheet(0);
-    setWorkbook(null);
 
-    // Validate file type
+    // Se valida antes de tocar el estado: un fichero rechazado no debe
+    // destruir el dataset que ya estaba cargado.
     const validTypes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel'
     ];
-    
+
     if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/i)) {
       setError('Por favor, selecciona un archivo Excel válido (.xlsx o .xls)');
-      setLoading(false);
       return;
     }
 
     // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       setError('El archivo es demasiado grande. El tamaño máximo permitido es 10MB.');
-      setLoading(false);
       return;
     }
+
+    setLoading(true);
+    setData([]);
+    setFilteredData(null);
+    setAvailableSheets([]);
+    setSelectedSheet(0);
+    setWorkbook(null);
 
     // Set file info
     setFileInfo({
@@ -180,6 +181,9 @@ const FileUpload: React.FC = () => {
   };
 
   const processSheet = (wb: XLSX.WorkBook, sheetIndex: number) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
     try {
       const sheetName = wb.SheetNames[sheetIndex];
       const worksheet = wb.Sheets[sheetName];
@@ -259,6 +263,10 @@ const FileUpload: React.FC = () => {
       }
 
       setData(cleanedData);
+      // Nuevo dataset: se descarta el filtrado anterior y se cambia la clave
+      // que remonta filtros y vistas.
+      setFilteredData(null);
+      setDatasetId(id => id + 1);
       setSuccess(`Archivo procesado exitosamente. Se encontraron ${cleanedData.length} registros de dividendos en la hoja "${sheetName}".`);
       setLoading(false);
       
@@ -270,13 +278,7 @@ const FileUpload: React.FC = () => {
 
   const handleSheetChange = (sheetIndex: number) => {
     if (!workbook) return;
-    
     setSelectedSheet(sheetIndex);
-    setLoading(true);
-    setError(null);
-    setSuccess(null);
-    setFilteredData(null);
-    
     processSheet(workbook, sheetIndex);
   };
 
@@ -364,8 +366,11 @@ const FileUpload: React.FC = () => {
         </Alert>
       )}
 
+      {/* La clave cambia con cada dataset: filtros y vistas se remontan y su
+          estado interno (filtros, ordenaciones, moneda) no sobrevive al
+          cambio de hoja. */}
       {data.length > 0 && (
-        <Box mt={2}>
+        <Box mt={2} key={datasetId}>
           <Box mb={2}>
             <Stack 
               direction="row" 

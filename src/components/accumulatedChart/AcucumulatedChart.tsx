@@ -13,7 +13,7 @@ import {
 import React, { useState, useMemo, useCallback } from 'react';
 import { Line } from 'react-chartjs-2';
 import { DividendData } from '../../types/dividend';
-import { parseExcelDate, formatDate } from '../../utils/dateUtils';
+import { accumulateByDate, formatDate } from '../../utils/dateUtils';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -25,47 +25,13 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
   const [currency, setCurrency] = useState<'USD' | 'EUR' | 'both'>('USD');
   const [chartType, setChartType] = useState<'monthly' | 'cumulative'>('cumulative');
 
-  const processedData = useMemo(() => {
-    // Group by date
-    const groupedData = data.reduce((acc, curr) => {
-      const date = curr["Fecha de pago"];
-      if (!acc[date]) {
-        acc[date] = {
-          fecha: date,
-          fechaFormatted: parseExcelDate(date),
-          totalUSD: 0,
-          totalEUR: 0,
-        };
-      }
-      acc[date].totalUSD += curr["Dividendo neto recibido (USD)"];
-      acc[date].totalEUR += curr["Dividendo neto recibido (EUR)"];
-      return acc;
-    }, {} as Record<string, { fecha: string; fechaFormatted: Date; totalUSD: number; totalEUR: number }>);
-
-    // Sort by date (oldest first)
-    const sortedData = Object.values(groupedData).sort((a, b) => 
-      a.fechaFormatted.getTime() - b.fechaFormatted.getTime()
-    );
-
-    // Calculate cumulative totals
-    const withCumulative = [];
-    let cumulativeUSD = 0;
-    let cumulativeEUR = 0;
-
-    for (const item of sortedData) {
-      cumulativeUSD += item.totalUSD;
-      cumulativeEUR += item.totalEUR;
-
-      withCumulative.push({
-        ...item,
-        cumulativeUSD,
-        cumulativeEUR,
-        formattedDate: formatDate(item.fechaFormatted)
-      });
-    }
-
-    return withCumulative;
-  }, [data]);
+  const processedData = useMemo(
+    () => accumulateByDate(data).map(item => ({
+      ...item,
+      formattedDate: formatDate(item.fechaFormatted)
+    })),
+    [data]
+  );
 
   const chartData = useMemo(() => {
     const labels = processedData.map(item => item.formattedDate);

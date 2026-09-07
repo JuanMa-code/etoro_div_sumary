@@ -32,6 +32,11 @@ import { DividendData } from '../../types/dividend';
 import { parseExcelDate, endOfDay, toDateInputValue, parseDateInputValue } from '../../utils/dateUtils';
 import { getNameByLongName } from '../Parser';
 
+interface AmountRange {
+  min: number;
+  max: number;
+}
+
 interface FilterOptions {
   searchTerm: string;
   selectedCompanies: string[];
@@ -39,11 +44,8 @@ interface FilterOptions {
     start: Date | null;
     end: Date | null;
   };
-  // null significa "sin acotar por el usuario": se usa el extremo de los datos.
-  amountRange: {
-    min: number | null;
-    max: number | null;
-  };
+  // null significa "sin tocar por el usuario": se usan los extremos de los datos.
+  amountRange: AmountRange | null;
   sortBy: 'date' | 'amount' | 'company';
   sortOrder: 'asc' | 'desc';
 }
@@ -53,22 +55,39 @@ interface Props {
   onFiltersChange: (filteredData: DividendData[]) => void;
 }
 
-const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
-  const [filters, setFilters] = useState<FilterOptions>({
-    searchTerm: '',
-    selectedCompanies: [],
-    dateRange: { start: null, end: null },
-    amountRange: { min: null, max: null },
-    sortBy: 'date',
-    sortOrder: 'desc'
-  });
+const DEFAULT_FILTERS: FilterOptions = {
+  searchTerm: '',
+  selectedCompanies: [],
+  dateRange: { start: null, end: null },
+  amountRange: null,
+  sortBy: 'date',
+  sortOrder: 'desc'
+};
 
+// El filtro de importe solo cuenta como activo si estrecha el rango de los
+// datos; devolver los dos tiradores a los extremos equivale a no filtrar.
+const isNarrower = (range: AmountRange | null, bounds: AmountRange): range is AmountRange =>
+  range !== null && (range.min > bounds.min || range.max < bounds.max);
+
+const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
+  const [filters, setFilters] = useState<FilterOptions>(DEFAULT_FILTERS);
   const [expanded, setExpanded] = useState<string | false>('basic');
+  // Posición del slider mientras se arrastra; se vuelca a filters al soltar,
+  // para no recalcular todo el filtrado en cada tick del ratón.
+  const [draggingAmount, setDraggingAmount] = useState<AmountRange | null>(null);
+
+  // Cada fecha se parsea una sola vez; el filtro de fechas y la ordenación
+  // reutilizan el timestamp en vez de volver a parsear en cada comparación.
+  const timestamps = useMemo(() => {
+    const map = new Map<DividendData, number>();
+    for (const item of data) {
+      map.set(item, parseExcelDate(item['Fecha de pago']).getTime());
+    }
+    return map;
+  }, [data]);
 
   // Calcular opciones disponibles
   const availableOptions = useMemo(() => {
-    if (data.length === 0) return { companies: [], amountRange: { min: 0, max: 0 } };
-
     const companies = Array.from(new Set(data.map(item => item['Nombre del instrumento'])))
       .sort()
       .map(company => ({
@@ -77,10 +96,10 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
         fullName: company
       }));
 
-    // Se recorre con reduce en vez de Math.min(...amounts) para no desbordar
+    // Se recorre con un bucle en vez de Math.min(...amounts) para no desbordar
     // la pila de llamadas con ficheros de muchas filas.
-    let min = Infinity;
-    let max = -Infinity;
+    let min = data.length > 0 ? data[0]['Dividendo neto recibido (USD)'] : 0;
+    let max = min;
     for (const item of data) {
       const amount = item['Dividendo neto recibido (USD)'];
       if (amount < min) min = amount;
@@ -90,22 +109,18 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
     return { companies, amountRange: { min: Math.floor(min), max: Math.ceil(max) } };
   }, [data]);
 
-  // El rango efectivo se deriva de los datos cargados en lugar de guardarse en
-  // estado: si se quedara en un valor fijo, los dividendos fuera de ese rango
-  // se descartarían en silencio al cambiar de fichero.
-  const effectiveAmountRange = useMemo(() => ({
-    min: filters.amountRange.min ?? availableOptions.amountRange.min,
-    max: filters.amountRange.max ?? availableOptions.amountRange.max
-  }), [filters.amountRange, availableOptions.amountRange]);
+  const dataAmountRange = availableOptions.amountRange;
+  const amountFilterActive = isNarrower(filters.amountRange, dataAmountRange);
+  const sliderValue = draggingAmount ?? filters.amountRange ?? dataAmountRange;
 
   // Aplicar filtros
   const filteredData = useMemo(() => {
-    let result = [...data];
+    let result = data;
 
     // Filtro de búsqueda
     if (filters.searchTerm) {
       const searchLower = filters.searchTerm.toLowerCase();
-      result = result.filter(item => 
+      result = result.filter(item =>
         item['Nombre del instrumento'].toLowerCase().includes(searchLower) ||
         (getNameByLongName(item['Nombre del instrumento']) || '').toLowerCase().includes(searchLower) ||
         item['ISIN']?.toLowerCase().includes(searchLower)
@@ -114,7 +129,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
 
     // Filtro de empresas
     if (filters.selectedCompanies.length > 0) {
-      result = result.filter(item => 
+      result = result.filter(item =>
         filters.selectedCompanies.includes(item['Nombre del instrumento'])
       );
     }
@@ -122,36 +137,33 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
     // Filtro de fechas: el límite superior es el final del día para que los
     // pagos de la propia fecha "fin" queden incluidos.
     if (filters.dateRange.start || filters.dateRange.end) {
-      const start = filters.dateRange.start;
-      const end = filters.dateRange.end ? endOfDay(filters.dateRange.end) : null;
+      const start = filters.dateRange.start?.getTime() ?? -Infinity;
+      const end = filters.dateRange.end ? endOfDay(filters.dateRange.end).getTime() : Infinity;
 
       result = result.filter(item => {
-        const itemDate = parseExcelDate(item['Fecha de pago']);
-        if (start && itemDate < start) return false;
-        if (end && itemDate > end) return false;
-        return true;
+        const time = timestamps.get(item) ?? 0;
+        return time >= start && time <= end;
       });
     }
 
-    // Filtro de montos: sólo se aplica si el usuario ha estrechado el rango,
-    // para no descartar registros con el rango completo por defecto.
-    if (filters.amountRange.min !== null || filters.amountRange.max !== null) {
-      const { min, max } = effectiveAmountRange;
+    // Filtro de importes: sólo si el usuario ha estrechado el rango.
+    const amountRange = filters.amountRange;
+    if (isNarrower(amountRange, availableOptions.amountRange)) {
       result = result.filter(item => {
         const amount = item['Dividendo neto recibido (USD)'];
-        return amount >= min && amount <= max;
+        return amount >= amountRange.min && amount <= amountRange.max;
       });
     }
 
-    // Ordenar
-    result.sort((a, b) => {
-      let aValue: string | number | Date;
-      let bValue: string | number | Date;
+    // Ordenar (sobre una copia: result puede ser el propio array de props)
+    return [...result].sort((a, b) => {
+      let aValue: string | number;
+      let bValue: string | number;
 
       switch (filters.sortBy) {
         case 'date':
-          aValue = parseExcelDate(a['Fecha de pago']);
-          bValue = parseExcelDate(b['Fecha de pago']);
+          aValue = timestamps.get(a) ?? 0;
+          bValue = timestamps.get(b) ?? 0;
           break;
         case 'amount':
           aValue = a['Dividendo neto recibido (USD)'];
@@ -171,9 +183,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
         return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
       }
     });
-
-    return result;
-  }, [data, filters, effectiveAmountRange]);
+  }, [data, filters, timestamps, availableOptions.amountRange]);
 
   // Notificar cambios
   React.useEffect(() => {
@@ -185,22 +195,22 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
   };
 
   const clearAllFilters = () => {
-    setFilters({
-      searchTerm: '',
-      selectedCompanies: [],
-      dateRange: { start: null, end: null },
-      amountRange: { min: null, max: null },
-      sortBy: 'date',
-      sortOrder: 'desc'
-    });
+    setDraggingAmount(null);
+    setFilters(DEFAULT_FILTERS);
   };
 
   const activeFiltersCount = [
     filters.searchTerm !== '',
     filters.selectedCompanies.length > 0,
     filters.dateRange.start !== null || filters.dateRange.end !== null,
-    filters.amountRange.min !== null || filters.amountRange.max !== null
+    amountFilterActive
   ].filter(Boolean).length;
+
+  const advancedFiltersActive =
+    filters.selectedCompanies.length > 0 ||
+    filters.dateRange.start !== null ||
+    filters.dateRange.end !== null ||
+    amountFilterActive;
 
   return (
     <Paper elevation={2} sx={{ p: 2, mb: 3, width: '100%' }}>
@@ -211,10 +221,10 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
             Filtros Avanzados
           </Typography>
           {activeFiltersCount > 0 && (
-            <Chip 
-              label={`${activeFiltersCount} activos`} 
-              color="primary" 
-              size="small" 
+            <Chip
+              label={`${activeFiltersCount} activos`}
+              color="primary"
+              size="small"
             />
           )}
         </Box>
@@ -274,14 +284,14 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
       </Grid>
 
       {/* Filtros avanzados en acordeón */}
-      <Accordion 
-        expanded={expanded === 'advanced'} 
+      <Accordion
+        expanded={expanded === 'advanced'}
         onChange={(_, isExpanded) => setExpanded(isExpanded ? 'advanced' : false)}
       >
         <AccordionSummary expandIcon={<ExpandMore />}>
           <Box display="flex" alignItems="center" gap={1}>
             <Typography>Filtros Avanzados</Typography>
-            {(filters.selectedCompanies.length > 0 || filters.dateRange.start || filters.dateRange.end) && (
+            {advancedFiltersActive && (
               <Chip label="Activos" color="primary" size="small" />
             )}
           </Box>
@@ -297,10 +307,10 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
               <Autocomplete
                 multiple
                 options={availableOptions.companies}
-                value={availableOptions.companies.filter(company => 
+                value={availableOptions.companies.filter(company =>
                   filters.selectedCompanies.includes(company.value)
                 )}
-                onChange={(_, newValue) => 
+                onChange={(_, newValue) =>
                   handleFilterChange('selectedCompanies', newValue.map(v => v.value))
                 }
                 getOptionLabel={(option) => option.label}
@@ -362,26 +372,29 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
               </Stack>
             </Grid>
 
-            {/* Filtro de montos */}
+            {/* Filtro de importes */}
             <Grid item xs={12}>
               <Box display="flex" alignItems="center" gap={1} mb={2}>
                 <AttachMoney fontSize="small" />
                 <Typography variant="subtitle2">
-                  Rango de montos (USD): ${effectiveAmountRange.min} - ${effectiveAmountRange.max}
+                  Rango de importes (USD): ${sliderValue.min} - ${sliderValue.max}
                 </Typography>
               </Box>
               <Slider
-                value={[effectiveAmountRange.min, effectiveAmountRange.max]}
-                onChange={(_, newValue) => 
-                  handleFilterChange('amountRange', { 
-                    min: (newValue as number[])[0], 
-                    max: (newValue as number[])[1] 
-                  })
-                }
+                value={[sliderValue.min, sliderValue.max]}
+                onChange={(_, newValue) => {
+                  const [min, max] = newValue as number[];
+                  setDraggingAmount({ min, max });
+                }}
+                onChangeCommitted={(_, newValue) => {
+                  const [min, max] = newValue as number[];
+                  setDraggingAmount(null);
+                  handleFilterChange('amountRange', { min, max });
+                }}
                 valueLabelDisplay="auto"
-                min={availableOptions.amountRange.min}
-                max={availableOptions.amountRange.max}
-                disabled={availableOptions.amountRange.min >= availableOptions.amountRange.max}
+                min={dataAmountRange.min}
+                max={dataAmountRange.max}
+                disabled={dataAmountRange.min >= dataAmountRange.max}
                 step={0.01}
                 valueLabelFormat={(value) => `$${value.toFixed(2)}`}
               />
@@ -408,8 +421,8 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
               <Chip
                 key={company}
                 label={getNameByLongName(company) || company}
-                onDelete={() => 
-                  handleFilterChange('selectedCompanies', 
+                onDelete={() =>
+                  handleFilterChange('selectedCompanies',
                     filters.selectedCompanies.filter(c => c !== company)
                   )
                 }
@@ -420,6 +433,13 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
               <Chip
                 label="Rango de fechas"
                 onDelete={() => handleFilterChange('dateRange', { start: null, end: null })}
+                size="small"
+              />
+            )}
+            {amountFilterActive && filters.amountRange && (
+              <Chip
+                label={`Importe: $${filters.amountRange.min} - $${filters.amountRange.max}`}
+                onDelete={() => handleFilterChange('amountRange', null)}
                 size="small"
               />
             )}

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Grid,
@@ -18,7 +18,7 @@ import {
   Info
 } from '@mui/icons-material';
 import { DividendData } from '../../types/dividend';
-import { parseExcelDate, formatDate } from '../../utils/dateUtils';
+import { parseExcelDate, formatDate, toMonthKey } from '../../utils/dateUtils';
 
 interface Props {
   data: DividendData[];
@@ -81,6 +81,10 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, subtitle, icon, c
 );
 
 const Dashboard: React.FC<Props> = ({ data }) => {
+  // Instante de montaje: la regla de pureza del React Compiler no permite
+  // Date.now() durante el render, y para "días invirtiendo" basta con esto.
+  const [now] = useState(() => Date.now());
+
   const metrics = useMemo((): DashboardMetrics => {
     if (data.length === 0) {
       return {
@@ -105,49 +109,56 @@ const Dashboard: React.FC<Props> = ({ data }) => {
     const uniqueCompanies = new Set(data.map(item => item['Nombre del instrumento'])).size;
     const averagePerTransaction = totalUSD / totalTransactions;
 
+    // Cada fecha se parsea una sola vez; todas las métricas leen de aquí.
+    const dated = data.map(item => ({
+      date: parseExcelDate(item['Fecha de pago']),
+      usd: item['Dividendo neto recibido (USD)'],
+      company: item['Nombre del instrumento'],
+    }));
+
     // Fechas
-    const dates = data.map(item => parseExcelDate(item['Fecha de pago'])).sort((a, b) => a.getTime() - b.getTime());
-    const firstDividend = dates[0];
-    const lastDividend = dates[dates.length - 1];
+    const times = dated.map(d => d.date.getTime()).sort((a, b) => a - b);
+    const firstDividend = new Date(times[0]);
+    const lastDividend = new Date(times[times.length - 1]);
 
     // Mejor mes
-    const monthlyTotals = data.reduce((acc, item) => {
-      const date = parseExcelDate(item['Fecha de pago']);
-      const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`;
-      acc[monthKey] = (acc[monthKey] || 0) + item['Dividendo neto recibido (USD)'];
-      return acc;
-    }, {} as Record<string, number>);
+    const monthlyTotals: Record<string, number> = {};
+    for (const { date, usd } of dated) {
+      const monthKey = toMonthKey(date);
+      monthlyTotals[monthKey] = (monthlyTotals[monthKey] || 0) + usd;
+    }
 
-    const bestMonthEntry = Object.entries(monthlyTotals).reduce((best, [month, amount]) => 
+    const bestMonthEntry = Object.entries(monthlyTotals).reduce((best, [month, amount]) =>
       amount > best.amount ? { month, amount } : best, { month: '', amount: 0 });
 
     // Mejor empresa
-    const companyTotals = data.reduce((acc, item) => {
-      const company = item['Nombre del instrumento'];
-      acc[company] = (acc[company] || 0) + item['Dividendo neto recibido (USD)'];
-      return acc;
-    }, {} as Record<string, number>);
+    const companyTotals: Record<string, number> = {};
+    for (const { company, usd } of dated) {
+      companyTotals[company] = (companyTotals[company] || 0) + usd;
+    }
 
-    const bestCompanyEntry = Object.entries(companyTotals).reduce((best, [name, amount]) => 
+    const bestCompanyEntry = Object.entries(companyTotals).reduce((best, [name, amount]) =>
       amount > best.amount ? { name, amount } : best, { name: '', amount: 0 });
 
     // Promedio mensual
     const monthsDiff = Math.max(1, (lastDividend.getTime() - firstDividend.getTime()) / (1000 * 60 * 60 * 24 * 30));
     const monthlyAverage = totalUSD / monthsDiff;
 
-    // Tendencia (últimos 3 meses vs anteriores)
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    
-    const recentDividends = data.filter(item => parseExcelDate(item['Fecha de pago']) >= threeMonthsAgo);
-    const olderDividends = data.filter(item => parseExcelDate(item['Fecha de pago']) < threeMonthsAgo);
-    
-    const recentAvg = recentDividends.length > 0 ? 
-      recentDividends.reduce((sum, item) => sum + item['Dividendo neto recibido (USD)'], 0) / 3 : 0;
-    const olderAvg = olderDividends.length > 0 ? 
-      olderDividends.reduce((sum, item) => sum + item['Dividendo neto recibido (USD)'], 0) / Math.max(1, monthsDiff - 3) : 0;
-    
-    const trend = recentAvg > olderAvg * 1.1 ? 'up' : recentAvg < olderAvg * 0.9 ? 'down' : 'stable';
+    // Tendencia: últimos 3 meses de datos frente al resto. La ventana se ancla
+    // al último pago y no a hoy, para que un fichero antiguo no salga siempre
+    // como decreciente.
+    const threeMonthsAgo = new Date(lastDividend.getFullYear(), lastDividend.getMonth() - 3, lastDividend.getDate());
+    const recentTotal = dated.filter(d => d.date >= threeMonthsAgo).reduce((sum, d) => sum + d.usd, 0);
+    const olderTotal = dated.filter(d => d.date < threeMonthsAgo).reduce((sum, d) => sum + d.usd, 0);
+
+    const recentAvg = recentTotal / 3;
+    const olderAvg = olderTotal / Math.max(1, monthsDiff - 3);
+
+    // Sin historial anterior no hay con qué comparar.
+    const trend = olderTotal === 0 ? 'stable'
+      : recentAvg > olderAvg * 1.1 ? 'up'
+      : recentAvg < olderAvg * 0.9 ? 'down'
+      : 'stable';
 
     return {
       totalUSD,
@@ -319,12 +330,12 @@ const Dashboard: React.FC<Props> = ({ data }) => {
                   size="small" 
                 />
                 <Chip 
-                  label={`${Math.ceil((Date.now() - metrics.firstDividend.getTime()) / (1000 * 60 * 60 * 24))} días invirtiendo`} 
+                  label={`${Math.ceil((now - metrics.firstDividend.getTime()) / (1000 * 60 * 60 * 24))} días invirtiendo`} 
                   variant="outlined" 
                   size="small" 
                 />
                 <Chip 
-                  label={`Última actividad: ${Math.ceil((Date.now() - metrics.lastDividend.getTime()) / (1000 * 60 * 60 * 24))} días`} 
+                  label={`Última actividad: ${Math.ceil((now - metrics.lastDividend.getTime()) / (1000 * 60 * 60 * 24))} días`} 
                   variant="outlined" 
                   size="small" 
                 />

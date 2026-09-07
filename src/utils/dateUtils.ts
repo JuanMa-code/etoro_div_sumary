@@ -1,89 +1,98 @@
-import { DividendData } from '../types/dividend';
+import { DividendData, DateAccumulatedData } from '../types/dividend';
+
+const pad2 = (n: number): string => n.toString().padStart(2, '0');
 
 /**
- * Parses a date string from Excel format to JavaScript Date
- * Handles multiple date formats: DD/MM/YYYY, DD-MM-YYYY, MM/DD/YYYY
- * Also handles Excel serial date numbers
+ * Builds a Date at local midnight, or null when the parts do not form a real
+ * calendar day. setFullYear keeps years 0-99 as-is instead of mapping them to
+ * 1900-1999 (the Date constructor does that), and the round-trip check rejects
+ * rolled-over days such as 31/02.
+ */
+const buildLocalDate = (year: number, monthIndex: number, day: number): Date | null => {
+  const date = new Date(year, monthIndex, day);
+  date.setFullYear(year, monthIndex, day);
+  if (isNaN(date.getTime()) || date.getMonth() !== monthIndex || date.getDate() !== day) {
+    return null;
+  }
+  return date;
+};
+
+// An optional time suffix (" 10:15:00", "T10:15") is accepted and ignored.
+const DMY_PATTERN = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T].*)?$/;
+const YMD_PATTERN = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:[ T].*)?$/;
+
+/**
+ * Parses an Excel cell value (DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, or an Excel
+ * serial number) into a local-midnight Date. Returns null when the value
+ * cannot be read as a date, so callers can drop the row instead of guessing.
+ */
+export const tryParseExcelDate = (value: unknown): Date | null => {
+  if (value === null || value === undefined || value === '') return null;
+
+  // Excel serials are anchored to UTC: rebuild from the UTC parts so the day
+  // does not shift in negative-offset timezones.
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value <= 0) return null;
+    const utc = new Date(Math.round((value - 25569) * 86400 * 1000));
+    return buildLocalDate(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+  }
+
+  const str = String(value).trim();
+
+  const dmy = str.match(DMY_PATTERN);
+  if (dmy) return buildLocalDate(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+
+  const ymd = str.match(YMD_PATTERN);
+  if (ymd) return buildLocalDate(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+
+  // Last resort: native parsing, truncated to local midnight so every date in
+  // the app is comparable with the ones built above.
+  const fallback = new Date(str);
+  if (isNaN(fallback.getTime())) return null;
+  return buildLocalDate(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+};
+
+/**
+ * Same as tryParseExcelDate but never fails: unreadable input yields today at
+ * local midnight. Rows coming out of cleanDividendData always parse, so the
+ * fallback is only reachable with raw, uncleaned values.
  */
 export const parseExcelDate = (dateStr: string | number): Date => {
-  if (dateStr === null || dateStr === undefined || dateStr === '') return new Date();
-
-  // If it's already a number (Excel serial date), convert it.
-  // El serial se ancla a UTC, así que se reconstruye desde las partes UTC
-  // para no desplazar un día en zonas con offset negativo.
-  if (typeof dateStr === 'number') {
-    const utc = new Date(Math.round((dateStr - 25569) * 86400 * 1000));
-    if (isNaN(utc.getTime())) return new Date();
-    return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
-  }
-
-  // Clean the string
-  const cleanDateStr = dateStr.toString().trim();
-  
-  // Try different date formats
-  const formats = [
-    /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/, // DD/MM/YYYY or DD-MM-YYYY
-    /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/, // YYYY/MM/DD or YYYY-MM-DD
-  ];
-  
-  for (const format of formats) {
-    const match = cleanDateStr.match(format);
-    if (match) {
-      const [, part1, part2, part3] = match;
-      
-      // For DD/MM/YYYY format (assuming European format)
-      if (format === formats[0]) {
-        const day = parseInt(part1, 10);
-        const month = parseInt(part2, 10) - 1; // Month is 0-indexed
-        const year = parseInt(part3, 10);
-        return new Date(year, month, day);
-      }
-      
-      // For YYYY/MM/DD format
-      if (format === formats[1]) {
-        const year = parseInt(part1, 10);
-        const month = parseInt(part2, 10) - 1; // Month is 0-indexed
-        const day = parseInt(part3, 10);
-        return new Date(year, month, day);
-      }
-    }
-  }
-  
-  // Fallback: try native Date parsing
-  const fallbackDate = new Date(cleanDateStr);
-  return isNaN(fallbackDate.getTime()) ? new Date() : fallbackDate;
+  const parsed = tryParseExcelDate(dateStr);
+  if (parsed) return parsed;
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 };
 
 /**
  * Formats a date to DD/MM/YYYY format
  */
-export const formatDate = (date: Date): string => {
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-};
+export const formatDate = (date: Date): string =>
+  `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`;
 
 /**
- * Formats a date to YYYY-MM-DD using local parts, for <input type="date">.
- * No se usa toISOString() porque convierte a UTC y puede restar un día.
+ * YYYY-MM key used to bucket rows by month. Zero-padded so that a plain string
+ * sort is chronological ("2024-02" < "2024-10").
  */
-export const toDateInputValue = (date: Date): string => {
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
-  return `${date.getFullYear()}-${month}-${day}`;
-};
+export const toMonthKey = (date: Date): string =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+
+/**
+ * Formats a date as YYYY-MM-DD from its local parts, for <input type="date">.
+ * toISOString() is avoided because it converts to UTC and can move the day.
+ */
+export const toDateInputValue = (date: Date): string =>
+  `${date.getFullYear().toString().padStart(4, '0')}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 
 /**
  * Parses a YYYY-MM-DD value from <input type="date"> as local midnight.
- * new Date('YYYY-MM-DD') lo interpreta como UTC, lo que descuadra las
- * comparaciones contra fechas construidas en hora local.
+ * new Date('YYYY-MM-DD') would read it as UTC midnight, which does not compare
+ * correctly against dates built in local time.
  */
 export const parseDateInputValue = (value: string): Date | null => {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return null;
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return isNaN(date.getTime()) ? null : date;
+  return buildLocalDate(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
 };
 
 /**
@@ -93,38 +102,46 @@ export const endOfDay = (date: Date): Date =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
 
 /**
+ * Arithmetic mean; 0 for an empty list so callers never divide by zero.
+ */
+export const average = (values: number[]): number =>
+  values.length === 0 ? 0 : values.reduce((sum, v) => sum + v, 0) / values.length;
+
+/**
  * Validates dividend data structure
  */
 export const validateDividendData = (data: unknown): data is Record<string, unknown> => {
   if (!data || typeof data !== 'object' || data === null || Array.isArray(data)) {
     return false;
   }
-  
+
   const record = data as Record<string, unknown>;
-  
+
   const has = (obj: Record<string, unknown>, key: string): boolean =>
     Object.prototype.hasOwnProperty.call(obj, key);
 
-  // Verificar campos obligatorios con protección contra prototype pollution
+  // Own-property checks guard against prototype pollution.
   const hasFechaPago = has(record, 'Fecha de pago') && record['Fecha de pago'] != null;
   const hasNombreInstrumento = has(record, 'Nombre del instrumento') && record['Nombre del instrumento'] != null;
   const hasDividendoUSD = has(record, 'Dividendo neto recibido (USD)') && record['Dividendo neto recibido (USD)'] != null;
   const hasDividendoEUR = has(record, 'Dividendo neto recibido (EUR)') && record['Dividendo neto recibido (EUR)'] != null;
-  
+
   return hasFechaPago && hasNombreInstrumento && (hasDividendoUSD || hasDividendoEUR);
 };
 
 /**
- * Cleans and validates raw Excel data
+ * Cleans and validates raw Excel data. Rows without an instrument name, with a
+ * date that cannot be parsed, or with no positive amount in either currency
+ * are dropped.
  */
 export const cleanDividendData = (rawData: unknown[]): DividendData[] => {
   if (!Array.isArray(rawData)) {
     return [];
   }
-  
+
   const toStr = (val: unknown): string => {
     const str = String(val ?? '');
-    // Sanitizar caracteres de control, manteniendo solo texto imprimible
+    // Strip control characters, keeping only printable text.
     // eslint-disable-next-line no-control-regex
     return str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
   };
@@ -144,13 +161,56 @@ export const cleanDividendData = (rawData: unknown[]): DividendData[] => {
       'ID de posición': toStr(record['ID de posición']),
       'Tipo': toStr(record['Tipo']),
     }))
-    .filter(item => 
-      item['Fecha de pago'] && 
-      item['Nombre del instrumento'] && 
+    .filter(item =>
+      item['Nombre del instrumento'] &&
+      tryParseExcelDate(item['Fecha de pago']) !== null &&
       (item['Dividendo neto recibido (USD)'] > 0 || item['Dividendo neto recibido (EUR)'] > 0)
     );
-  
+
   return validItems;
+};
+
+/**
+ * Groups rows by payment day, oldest first, with running totals. Grouping is
+ * done on the parsed day rather than the raw cell text, so "05/03/2024" and
+ * "5/3/2024" land on the same row. Shared by the date table and the chart.
+ */
+export const accumulateByDate = (data: DividendData[]): DateAccumulatedData[] => {
+  const byDay = new Map<string, DateAccumulatedData>();
+
+  for (const item of data) {
+    const fechaFormatted = parseExcelDate(item['Fecha de pago']);
+    const key = toDateInputValue(fechaFormatted);
+    let row = byDay.get(key);
+    if (!row) {
+      row = {
+        fecha: item['Fecha de pago'],
+        fechaFormatted,
+        totalUSD: 0,
+        totalEUR: 0,
+        cumulativeUSD: 0,
+        cumulativeEUR: 0,
+      };
+      byDay.set(key, row);
+    }
+    row.totalUSD += item['Dividendo neto recibido (USD)'];
+    row.totalEUR += item['Dividendo neto recibido (EUR)'];
+  }
+
+  const rows = [...byDay.values()].sort(
+    (a, b) => a.fechaFormatted.getTime() - b.fechaFormatted.getTime()
+  );
+
+  let cumulativeUSD = 0;
+  let cumulativeEUR = 0;
+  for (const row of rows) {
+    cumulativeUSD += row.totalUSD;
+    cumulativeEUR += row.totalEUR;
+    row.cumulativeUSD = cumulativeUSD;
+    row.cumulativeEUR = cumulativeEUR;
+  }
+
+  return rows;
 };
 
 /**

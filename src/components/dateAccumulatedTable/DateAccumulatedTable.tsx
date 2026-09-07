@@ -12,8 +12,8 @@ import {
   TableSortLabel
 } from '@mui/material';
 import React, { useState, useMemo } from 'react';
-import { DividendData, DateAccumulatedData } from '../../types/dividend';
-import { parseExcelDate, formatDate } from '../../utils/dateUtils';
+import { DividendData } from '../../types/dividend';
+import { accumulateByDate, formatDate } from '../../utils/dateUtils';
 
 interface Props {
   data: DividendData[];
@@ -26,48 +26,11 @@ const DateAccumulatedTable: React.FC<Props> = ({ data }) => {
   const [sortField, setSortField] = useState<SortField>('fecha');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
+  const accumulated = useMemo(() => accumulateByDate(data), [data]);
+
+  // Cambiar la ordenación solo reordena las filas ya agregadas.
   const processedData = useMemo(() => {
-    // Group by date
-    const groupedData = data.reduce((acc, curr) => {
-      const date = curr["Fecha de pago"];
-      if (!acc[date]) {
-        acc[date] = {
-          fecha: date,
-          fechaFormatted: parseExcelDate(date),
-          totalUSD: 0,
-          totalEUR: 0,
-          cumulativeUSD: 0,
-          cumulativeEUR: 0,
-        };
-      }
-      acc[date].totalUSD += curr["Dividendo neto recibido (USD)"];
-      acc[date].totalEUR += curr["Dividendo neto recibido (EUR)"];
-      return acc;
-    }, {} as Record<string, DateAccumulatedData>);
-
-    // Convert to array and sort by date first (oldest first for cumulative calculation)
-    const sortedByDate = Object.values(groupedData).sort((a, b) => 
-      a.fechaFormatted.getTime() - b.fechaFormatted.getTime()
-    );
-
-    // Calculate cumulative totals
-    const dataWithCumulative: DateAccumulatedData[] = [];
-    let cumulativeUSD = 0;
-    let cumulativeEUR = 0;
-
-    for (const item of sortedByDate) {
-      cumulativeUSD += item.totalUSD;
-      cumulativeEUR += item.totalEUR;
-
-      dataWithCumulative.push({
-        ...item,
-        cumulativeUSD,
-        cumulativeEUR,
-      });
-    }
-
-    // Apply user sorting
-    return dataWithCumulative.sort((a, b) => {
+    return [...accumulated].sort((a, b) => {
       let aValue: string | number;
       let bValue: string | number;
 
@@ -102,7 +65,7 @@ const DateAccumulatedTable: React.FC<Props> = ({ data }) => {
         return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
       }
     });
-  }, [data, sortField, sortDirection]);
+  }, [accumulated, sortField, sortDirection]);
 
   const totals = useMemo(() => {
     return processedData.reduce(
