@@ -1,5 +1,8 @@
 # 📊 Analizador de Dividendos eToro
 
+[![CI](https://github.com/JuanMa-code/etoro_div_sumary/actions/workflows/deploy.yml/badge.svg)](https://github.com/JuanMa-code/etoro_div_sumary/actions/workflows/deploy.yml)
+![Cobertura de tests](https://JuanMa-code.github.io/etoro_div_sumary/coverage-badge.svg)
+
 Aplicación web que lee el Excel de historial de dividendos que exporta eToro y lo convierte en un dashboard, tablas, gráficos y una proyección sencilla. Todo se procesa en el navegador: el fichero nunca sale de tu equipo.
 
 Desplegada en GitHub Pages: <https://JuanMa-code.github.io/etoro_div_sumary>
@@ -48,6 +51,9 @@ La correspondencia nombre largo → ticker está en `src/components/Parser.tsx`.
 npm install
 npm run dev        # servidor de desarrollo
 npm run lint       # ESLint, cero avisos
+npm run test       # tests con Vitest (npm run test:watch para modo interactivo)
+npm run test:coverage  # tests + informe de cobertura en coverage/
+npm run coverage:badge # genera coverage/badge.svg a partir del informe
 npm run build      # type-check + bundle en dist/
 npm run preview    # sirve dist/ en local
 npm run deploy     # publica dist/ en GitHub Pages

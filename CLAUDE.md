@@ -13,16 +13,21 @@ npm run dev        # Vite dev server with HMR
 npm run build      # tsc (type-check) && vite build — an unused variable fails the build
 npm run lint       # eslint . --max-warnings 0 — warnings fail
 npm run preview    # serve dist/ locally
+npm run test       # vitest run (all tests, once)
+npm run test:watch # vitest in watch mode
+npm run test:coverage  # tests + v8 coverage (text, lcov, json-summary) in coverage/
+npm run coverage:badge # coverage/badge.svg from coverage/coverage-summary.json
 npm run deploy     # predeploy runs build, then gh-pages -d dist
 ```
 
-There is no test framework and no test script. CI (`.github/workflows/deploy.yml`, Node 22) runs `npm ci`, `npm audit --omit=dev --audit-level=high`, `npm run lint`, `npm run build`, then publishes `dist/` on every push to `main`. A change is "green" when lint and build both pass locally.
+CI (`.github/workflows/deploy.yml`, Node 22) runs `npm ci`, `npm audit --omit=dev --audit-level=high`, `npm run lint`, `npm run test:coverage`, `npm run coverage:badge`, `npm run build`, copies the badge into `dist/coverage-badge.svg` and publishes `dist/` on every push to `main`. Pull requests run the same job without the deploy step. A change is "green" when lint, tests (including the coverage thresholds in `vite.config.ts`) and build all pass locally.
 
-To sanity-check pure logic without a test runner, bundle the module with esbuild (a Vite transitive) and run it with Node:
+### Tests
 
-```bash
-npx esbuild src/utils/dateUtils.ts --bundle --format=esm --platform=node --outfile=/tmp/dateUtils.mjs
-```
+- Vitest 5 + jsdom + Testing Library, configured in the `test` block of `vite.config.ts`; `src/test/setup.ts` loads jest-dom matchers and polyfills `matchMedia` / `ResizeObserver` for MUI. Tests live next to the code as `*.test.ts(x)` and are type-checked by `tsc` during the build, so they must satisfy `noUnusedLocals` too.
+- Shared helpers in `src/test/`: `fixtures.ts` (`makeDividend`, `sampleData`, `buildWorkbookFile` / `buildEtoroFile` that serialise a real `.xlsx` with SheetJS into a `File`), `chartMock.tsx` (`MockLine` + `readChart`; mock `react-chartjs-2` with it because jsdom has no canvas) and `mui.ts` (`selectByLabel`, because the app's `Select`s have no `labelId` and therefore no accessible name).
+- Coverage thresholds (80% lines/functions/statements, 70% branches) fail the run when not met; `main.tsx`, `src/types` and `src/test` are excluded. The README badge is served from GitHub Pages, so it only updates after a successful deploy.
+- Gotchas seen while writing them: MUI outlined fields render their label twice (label + notch legend), `Accordion` wraps its summary in an `<h3>` (query headings by `level`), collapsed accordion content is inaccessible to role queries until expanded, and `userEvent.setup({ applyAccept: false })` is needed to push a non-Excel file through the `accept` filter.
 
 Commit messages are in English. UI copy is Spanish. Code comments follow whatever language the surrounding file already uses (the repo is mixed: JSDoc in `dateUtils.ts` and `Parser.tsx` is English, inline comments in components are Spanish). Do not switch language mid-block.
 
@@ -34,7 +39,7 @@ Single page, no router, no state library. `src/components/fileUpload/FileUpdload
 
 1. `<input type="file">` → type/size validation (before any state is touched, so a rejected file keeps the loaded dataset) → `FileReader.readAsArrayBuffer` → `XLSX.read(..., { type: 'array' })`.
 2. Sheet choice: the first sheet whose name contains `div`/`dividend`/`dividendo`, otherwise index `min(3, sheets-1)` (the eToro export has dividends on its 4th sheet). The user can re-pick from a dropdown, which re-runs `processSheet` on the cached workbook.
-3. `sheet_to_json(..., { header: 1, raw: false })` gives rows of **formatted strings**, so dates arrive as `DD/MM/YYYY` text, not Excel serials. The header row is auto-detected: first of the top 5 rows with more than 3 cells and one cell containing `instrumento`, `dividend`, `fecha` or `isin`.
+3. `sheet_to_json(..., { header: 1, raw: false })` gives rows of **formatted strings**, so dates arrive as `DD/MM/YYYY` text, not Excel serials. The header row is auto-detected: first of the top 5 rows with more than 3 **non-empty** cells (`defval` pads every row to the sheet width, so a title row would otherwise qualify) and one cell containing `instrumento`, `dividend`, `fecha` or `isin`.
 4. Rows become `Record<string, unknown>` keyed by header text, then `cleanDividendData()` in `src/utils/dateUtils.ts` coerces them to `DividendData`. It silently drops rows lacking an instrument name, whose date does not parse, or whose USD **and** EUR amounts are both `<= 0`; unparseable numbers become `0`. A renamed column therefore yields "no valid data", not an error.
 5. Views: `dashboard | table | dateTable | chart | predictions` (`Alt+1..5` via `useKeyboardShortcuts`). `AdvancedFilters` is mounted only for `table`, `dateTable` and `chart`; `Dashboard` and `PredictionsPanel` always receive the unfiltered data.
 
@@ -72,7 +77,7 @@ Single page, no router, no state library. `src/components/fileUpload/FileUpdload
 
 ## Known dead code
 
-Exported but unused anywhere: all four skeletons in `src/components/common/LoadingSkeletons.tsx`, `sortByDate` in `dateUtils.ts`, `getLongNameByName` / `getAllCompanies` / `searchCompanies` in `Parser.tsx`, `getKeyboardShortcutsHelp` in the hook, and `src/App.css` (never imported). Either wire them in or delete them; do not build on the assumption they are in use.
+Exported but unused by the app: all four skeletons in `src/components/common/LoadingSkeletons.tsx`, `sortByDate` in `dateUtils.ts`, `getLongNameByName` / `getAllCompanies` / `searchCompanies` in `Parser.tsx`, `getKeyboardShortcutsHelp` in the hook, and `src/App.css` (never imported). They have tests so they do not drag coverage down, but nothing renders or calls them. Either wire them in or delete them (with their tests); do not build on the assumption they are in use.
 
 ## Other docs
 

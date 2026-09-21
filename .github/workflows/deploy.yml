@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+  # En las PRs (Dependabot incluido) se ejecuta todo menos el despliegue.
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build-and-deploy:
@@ -30,10 +34,23 @@ jobs:
     - name: Lint
       run: npm run lint
 
+    # Falla si algun test no pasa o si la cobertura baja de los umbrales
+    # definidos en vite.config.ts.
+    - name: Test with coverage
+      run: npm run test:coverage
+
+    - name: Generate coverage badge
+      run: npm run coverage:badge
+
     - name: Build the project
       run: npm run build
 
+    # El badge se publica junto a la app; el README lo enlaza desde Pages.
+    - name: Add coverage badge to the site
+      run: cp coverage/badge.svg dist/coverage-badge.svg
+
     - name: Deploy to GitHub Pages
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
