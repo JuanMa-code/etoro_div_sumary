@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import DividendTable from './DividendTable';
-import { sampleData } from '../../test/fixtures';
+import { sampleData, makeDividend } from '../../test/fixtures';
 
 const bodyRows = () => screen.getAllByRole('row').slice(1);
 const firstCellText = (row: HTMLElement) => within(row).getAllByRole('cell')[0].textContent;
@@ -19,6 +19,18 @@ describe('DividendTable', () => {
     expect(merged).toBeDefined();
     expect(within(merged!).getByText('$15.00')).toBeInTheDocument();
     expect(within(merged!).getByText('€13,50')).toBeInTheDocument();
+  });
+
+  it('groups by the parsed day, so differently written dates merge', () => {
+    const data = [
+      makeDividend({ 'Fecha de pago': '05/03/2024', 'Dividendo neto recibido (USD)': 10 }),
+      makeDividend({ 'Fecha de pago': '5/3/2024', 'Dividendo neto recibido (USD)': 5 }),
+      makeDividend({ 'Fecha de pago': '2024-03-05', 'Dividendo neto recibido (USD)': 1 }),
+    ];
+    render(<DividendTable data={data} />);
+
+    expect(screen.getByText('Tabla de Dividendos (1 registros)')).toBeInTheDocument();
+    expect(within(bodyRows()[0]).getByText('$16.00')).toBeInTheDocument();
   });
 
   it('sorts by date descending by default', () => {

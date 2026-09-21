@@ -15,7 +15,7 @@ import {
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import React, { useState, useMemo } from 'react';
 import { DividendData, ProcessedDividendData } from '../../types/dividend';
-import { parseExcelDate, formatDate } from '../../utils/dateUtils';
+import { parseExcelDate, formatDate, toDateInputValue } from '../../utils/dateUtils';
 import { getNameByLongName } from '../Parser';
 
 interface Props {
@@ -32,12 +32,15 @@ const DividendTable: React.FC<Props> = ({ data }) => {
 
   const processedData = useMemo(() => {
     const groupedData = data.reduce((acc, curr) => {
-      const key = `${curr["Nombre del instrumento"]}_${curr["Fecha de pago"]}`;
+      // Se agrupa por el día parseado y no por el texto de la celda, igual
+      // que accumulateByDate: "5/3/2024" y "05/03/2024" son la misma fila.
+      const fechaFormatted = parseExcelDate(curr["Fecha de pago"]);
+      const key = `${curr["Nombre del instrumento"]}_${toDateInputValue(fechaFormatted)}`;
       if (!acc[key]) {
         acc[key] = {
           nombre: curr["Nombre del instrumento"],
           fecha: curr["Fecha de pago"],
-          fechaFormatted: parseExcelDate(curr["Fecha de pago"]),
+          fechaFormatted,
           importeUSD: 0,
           importeEUR: 0,
         };
