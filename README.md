@@ -56,7 +56,7 @@ npm run test:coverage  # tests + informe de cobertura en coverage/
 npm run coverage:badge # genera coverage/badge.svg a partir del informe
 npm run build      # type-check + bundle en dist/
 npm run preview    # sirve dist/ en local
-# No hay script de deploy: la CI publica en GitHub Pages en cada push a main
+npm run deploy     # publica dist/ en GitHub Pages
 ```
 
 Stack: React 19, TypeScript 6, MUI 9, Chart.js 4, SheetJS, Vite 8. Tests con Vitest y Testing Library; la cobertura se publica como badge en cada despliegue.

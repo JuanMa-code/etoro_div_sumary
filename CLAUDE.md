@@ -17,9 +17,12 @@ npm run test       # vitest run (all tests, once)
 npm run test:watch # vitest in watch mode
 npm run test:coverage  # tests + v8 coverage (text, lcov, json-summary) in coverage/
 npm run coverage:badge # coverage/badge.svg from coverage/coverage-summary.json
+npm run deploy     # predeploy runs build, then gh-pages -d dist
 ```
 
-CI (`.github/workflows/deploy.yml`, Node 24, the active LTS; bump `node-version` when a new LTS lands because GitHub warns about old runtimes) has a `build` job that runs `npm ci`, `npm audit --omit=dev --audit-level=high`, `npm run lint`, `npm run test:coverage`, `npm run coverage:badge`, `npm run build` and copies the badge into `dist/coverage-badge.svg`, and a `deploy` job that publishes that `dist/` through the official Pages actions (`upload-pages-artifact` + `deploy-pages`, `github-pages` environment) on every push to `main`. Pull requests run only `build`. There is no local deploy script and no `gh-pages` branch any more: the repo's Pages source must stay on "GitHub Actions" (Settings → Pages), otherwise `deploy-pages` fails. The old branch-based flow triggered GitHub's internal "pages build and deployment" workflow, which still runs `upload-artifact@v4` on Node 20 and produced deprecation warnings nobody can fix from this repo. A change is "green" when lint, tests (including the coverage thresholds in `vite.config.ts`) and build all pass locally.
+CI (`.github/workflows/deploy.yml`, Node 24, the active LTS; bump `node-version` when a new LTS lands because GitHub warns about old runtimes) runs `npm ci`, `npm audit --omit=dev --audit-level=high`, `npm run lint`, `npm run test:coverage`, `npm run coverage:badge`, `npm run build`, copies the badge into `dist/coverage-badge.svg` and publishes `dist/` on every push to `main`. Pull requests run the same job without the deploy step. A change is "green" when lint, tests (including the coverage thresholds in `vite.config.ts`) and build all pass locally.
+
+Deployment goes through the `gh-pages` branch (`peaceiris/actions-gh-pages`, Pages source "Deploy from a branch"). Every push to that branch makes GitHub run its own internal "pages build and deployment" workflow, which as of September 2026 still uses `upload-artifact@v4` and prints a "Node.js 20 is deprecated" warning. That warning is not ours: every action in `deploy.yml` already runs on the node24 runtime, and the internal workflow can only be updated by GitHub. Do not try to silence it by switching to `upload-pages-artifact` / `deploy-pages`: that flow needs the repo's Pages source set to "GitHub Actions" and `main` allowed on the `github-pages` environment, and the owner prefers the branch-based flow (tried and reverted in commit `0fc7629`).
 
 ### Tests
 
