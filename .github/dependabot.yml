@@ -9,6 +9,11 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 3
+    ignore:
+      # typescript-eslint 8 solo acepta TypeScript <6.1 como peer: subir a
+      # TypeScript 7 rompe `npm ci` en la CI. Quitar cuando lo soporte.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
     groups:
