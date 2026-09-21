@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import * as XLSX from 'xlsx';
 import FileUpload from './FileUpdload';
 import { buildEtoroFile, buildWorkbookFile, sampleData, DIVIDEND_HEADERS, toRow } from '../../test/fixtures';
 import { selectByLabel } from '../../test/mui';
@@ -8,6 +9,13 @@ import { selectByLabel } from '../../test/mui';
 vi.mock('react-chartjs-2', async () => {
   const { MockLine } = await import('../../test/chartMock');
   return { Line: MockLine };
+});
+
+// XLSX.read se envuelve en un vi.fn para poder simular un fichero corrupto;
+// el resto del módulo (y los fixtures que generan los .xlsx) es el real.
+vi.mock('xlsx', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('xlsx')>();
+  return { ...actual, read: vi.fn(actual.read) };
 });
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -151,6 +159,22 @@ describe('FileUpload', () => {
 
     expect(screen.getByText('Tabla de Dividendos (4 registros)')).toBeInTheDocument();
     expect(screen.getByLabelText('Buscar empresa, ticker o ISIN')).toHaveValue('');
+  });
+
+  it('keeps the loaded dataset when the next file cannot be parsed', async () => {
+    const { user } = setup();
+    await loadEtoroFile(user);
+
+    vi.mocked(XLSX.read).mockImplementationOnce(() => {
+      throw new Error('Fichero corrupto');
+    });
+    await user.upload(fileInput(), buildEtoroFile(sampleData, 'roto.xlsx'));
+
+    await screen.findByText('Error al procesar el archivo: Fichero corrupto');
+    expect(screen.getByText('📊 Dashboard de Dividendos')).toBeInTheDocument();
+    expect(screen.getByText('📄 etoro.xlsx')).toBeInTheDocument();
+    expect(screen.queryByText('📄 roto.xlsx')).not.toBeInTheDocument();
+    expect(screen.getByText('Seleccionar Archivo')).toBeEnabled();
   });
 
   it('reports a read error from the FileReader', async () => {

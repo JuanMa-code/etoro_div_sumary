@@ -122,21 +122,9 @@ const FileUpload: React.FC = () => {
     }
 
     setLoading(true);
-    setData([]);
-    setFilteredData(null);
-    setAvailableSheets([]);
-    setSelectedSheet(0);
-    setWorkbook(null);
-
-    // Set file info
-    setFileInfo({
-      name: file.name,
-      size: formatFileSize(file.size),
-      lastModified: new Date(file.lastModified).toLocaleString('es-ES')
-    });
 
     const reader = new FileReader();
-    
+
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
@@ -145,11 +133,20 @@ const FileUpload: React.FC = () => {
         }
 
         const workbook = XLSX.read(data, { type: 'array' });
-        
+
         if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
           throw new Error('El archivo no contiene hojas de cálculo válidas');
         }
-        
+
+        // El dataset anterior solo se descarta cuando el nuevo libro se ha
+        // leído bien: un fichero corrupto deja la sesión como estaba.
+        setData([]);
+        setFilteredData(null);
+        setFileInfo({
+          name: file.name,
+          size: formatFileSize(file.size),
+          lastModified: new Date(file.lastModified).toLocaleString('es-ES')
+        });
         setWorkbook(workbook);
         setAvailableSheets(workbook.SheetNames);
         
