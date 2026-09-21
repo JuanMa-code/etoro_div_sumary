@@ -175,6 +175,11 @@ const Dashboard: React.FC<Props> = ({ data }) => {
     };
   }, [data]);
 
+  // Con un fichero solo en EUR el total USD es 0 y el objetivo también:
+  // sin la guarda saldría NaN% y la barra de progreso quedaría vacía.
+  const annualTarget = metrics.monthlyAverage * 12;
+  const annualProgress = annualTarget > 0 ? Math.min(100, (metrics.totalUSD / annualTarget) * 100) : 0;
+
   if (data.length === 0) {
     return (
       <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -311,15 +316,15 @@ const Dashboard: React.FC<Props> = ({ data }) => {
               <Box sx={{ mb: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                   <Typography variant="body2">
-                    Objetivo anual estimado: ${(metrics.monthlyAverage * 12).toFixed(2)}
+                    Objetivo anual estimado: ${annualTarget.toFixed(2)}
                   </Typography>
                   <Typography variant="body2">
-                    {((metrics.totalUSD / (metrics.monthlyAverage * 12)) * 100).toFixed(1)}%
+                    {annualProgress.toFixed(1)}%
                   </Typography>
                 </Box>
-                <LinearProgress 
-                  variant="determinate" 
-                  value={Math.min(100, (metrics.totalUSD / (metrics.monthlyAverage * 12)) * 100)}
+                <LinearProgress
+                  variant="determinate"
+                  value={annualProgress}
                   sx={{ height: 8, borderRadius: 4 }}
                 />
               </Box>

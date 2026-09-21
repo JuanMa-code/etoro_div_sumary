@@ -62,6 +62,19 @@ describe('Dashboard', () => {
     expect(screen.getByText('Estable')).toBeInTheDocument();
   });
 
+  it('shows 0% progress instead of NaN when the file only has EUR amounts', () => {
+    const eurOnly = [
+      makeDividend({ 'Fecha de pago': '10/01/2024', 'Dividendo neto recibido (USD)': 0, 'Dividendo neto recibido (EUR)': 5 }),
+      makeDividend({ 'Fecha de pago': '10/02/2024', 'Dividendo neto recibido (USD)': 0, 'Dividendo neto recibido (EUR)': 6 }),
+    ];
+    render(<Dashboard data={eurOnly} />);
+
+    expect(screen.getByText('Objetivo anual estimado: $0.00')).toBeInTheDocument();
+    expect(screen.getByText('0.0%')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+  });
+
   it('truncates very long company names', () => {
     const longName = 'Compañía con un nombre extraordinariamente largo SA';
     render(<Dashboard data={[makeDividend({ 'Nombre del instrumento': longName })]} />);
