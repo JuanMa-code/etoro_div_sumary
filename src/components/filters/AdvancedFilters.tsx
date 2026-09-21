@@ -214,8 +214,8 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
 
   return (
     <Paper elevation={2} sx={{ p: 2, mb: 3, width: '100%' }}>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-        <Box display="flex" alignItems="center" gap={1}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <FilterList />
           <Typography variant="h6">
             Filtros Avanzados
@@ -228,7 +228,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
             />
           )}
         </Box>
-        <Box display="flex" gap={1}>
+        <Box sx={{ display: 'flex', gap: 1 }}>
           <Typography variant="body2" color="text.secondary">
             {filteredData.length} de {data.length} registros
           </Typography>
@@ -241,20 +241,22 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
       </Box>
 
       {/* Filtros básicos siempre visibles */}
-      <Grid container spacing={2} mb={2}>
-        <Grid item xs={12} md={6}>
+      <Grid container spacing={2} sx={{ mb: 2 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <TextField
             fullWidth
             label="Buscar empresa, ticker o ISIN"
             value={filters.searchTerm}
             onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-            InputProps={{
-              startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+            slotProps={{
+              input: {
+                startAdornment: <Search sx={{ mr: 1, color: 'text.secondary' }} />
+              }
             }}
             size="small"
           />
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <FormControl fullWidth size="small">
             <InputLabel>Ordenar por</InputLabel>
             <Select
@@ -268,7 +270,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
             </Select>
           </FormControl>
         </Grid>
-        <Grid item xs={12} md={3}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <FormControl fullWidth size="small">
             <InputLabel>Orden</InputLabel>
             <Select
@@ -289,7 +291,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
         onChange={(_, isExpanded) => setExpanded(isExpanded ? 'advanced' : false)}
       >
         <AccordionSummary expandIcon={<ExpandMore />}>
-          <Box display="flex" alignItems="center" gap={1}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography>Filtros Avanzados</Typography>
             {advancedFiltersActive && (
               <Chip label="Activos" color="primary" size="small" />
@@ -299,8 +301,8 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
         <AccordionDetails>
           <Grid container spacing={3}>
             {/* Filtro de empresas */}
-            <Grid item xs={12} md={6}>
-              <Box display="flex" alignItems="center" gap={1} mb={1}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <Business fontSize="small" />
                 <Typography variant="subtitle2">Empresas</Typography>
               </Box>
@@ -322,23 +324,26 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
                     size="small"
                   />
                 )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => (
-                    <Chip
-                      variant="outlined"
-                      label={option.label}
-                      size="small"
-                      {...getTagProps({ index })}
-                      key={option.value}
-                    />
-                  ))
+                renderValue={(value, getItemProps) =>
+                  value.map((option, index) => {
+                    const { key, ...itemProps } = getItemProps({ index });
+                    return (
+                      <Chip
+                        variant="outlined"
+                        label={option.label}
+                        size="small"
+                        {...itemProps}
+                        key={key}
+                      />
+                    );
+                  })
                 }
               />
             </Grid>
 
             {/* Filtro de fechas simplificado */}
-            <Grid item xs={12} md={6}>
-              <Box display="flex" alignItems="center" gap={1} mb={1}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <CalendarToday fontSize="small" />
                 <Typography variant="subtitle2">Rango de fechas</Typography>
               </Box>
@@ -354,7 +359,7 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
                     })
                   }
                   size="small"
-                  InputLabelProps={{ shrink: true }}
+                  slotProps={{ inputLabel: { shrink: true } }}
                 />
                 <TextField
                   label="Fecha fin (DD/MM/YYYY)"
@@ -367,14 +372,14 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
                     })
                   }
                   size="small"
-                  InputLabelProps={{ shrink: true }}
+                  slotProps={{ inputLabel: { shrink: true } }}
                 />
               </Stack>
             </Grid>
 
             {/* Filtro de importes */}
-            <Grid item xs={12}>
-              <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <Grid size={{ xs: 12 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <AttachMoney fontSize="small" />
                 <Typography variant="subtitle2">
                   Rango de importes (USD): ${sliderValue.min} - ${sliderValue.max}
@@ -405,11 +410,11 @@ const AdvancedFilters: React.FC<Props> = ({ data, onFiltersChange }) => {
 
       {/* Resumen de filtros activos */}
       {activeFiltersCount > 0 && (
-        <Box mt={2}>
-          <Typography variant="body2" color="text.secondary" mb={1}>
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             Filtros activos:
           </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap">
+          <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
             {filters.searchTerm && (
               <Chip
                 label={`Búsqueda: "${filters.searchTerm}"`}

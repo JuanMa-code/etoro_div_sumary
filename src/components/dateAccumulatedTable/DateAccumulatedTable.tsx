@@ -88,13 +88,13 @@ const DateAccumulatedTable: React.FC<Props> = ({ data }) => {
 
   return (
     <Box sx={{ width: '100%' }}>
-      <Box mb={2}>
+      <Box sx={{ mb: 2 }}>
         <Typography variant="h6" gutterBottom>
           Totales Acumulados por Fecha ({processedData.length} fechas)
         </Typography>
       </Box>
 
-      <Box mb={2} display="flex" gap={1} flexWrap="wrap">
+      <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
         <Chip 
           label={`Total USD: $${totals.totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           color="primary" 
@@ -162,7 +162,7 @@ const DateAccumulatedTable: React.FC<Props> = ({ data }) => {
             {processedData.map((row, index) => (
               <TableRow key={index} hover>
                 <TableCell>
-                  <Typography variant="body2" fontWeight="medium">
+                  <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
                     {formatDate(row.fechaFormatted)}
                   </Typography>
                 </TableCell>
@@ -177,12 +177,12 @@ const DateAccumulatedTable: React.FC<Props> = ({ data }) => {
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Typography variant="body2" color="primary.main" fontWeight="bold">
+                  <Typography variant="body2" color="primary.main" sx={{ fontWeight: 'bold' }}>
                     ${row.cumulativeUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Typography variant="body2" color="secondary.main" fontWeight="bold">
+                  <Typography variant="body2" color="secondary.main" sx={{ fontWeight: 'bold' }}>
                     €{row.cumulativeEUR.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Typography>
                 </TableCell>

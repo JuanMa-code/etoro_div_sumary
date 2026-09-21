@@ -11,12 +11,12 @@ import {
 export const TableSkeleton: React.FC = () => (
   <Paper elevation={2} sx={{ p: 2 }}>
     <Skeleton variant="text" width="30%" height={40} sx={{ mb: 2 }} />
-    <Box display="flex" gap={1} mb={2}>
+    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
       <Skeleton variant="rectangular" width={120} height={32} />
       <Skeleton variant="rectangular" width={120} height={32} />
     </Box>
     {Array.from({ length: 5 }).map((_, index) => (
-      <Box key={index} display="flex" gap={2} mb={1}>
+      <Box key={index} sx={{ display: 'flex', gap: 2, mb: 1 }}>
         <Skeleton variant="text" width="25%" />
         <Skeleton variant="text" width="20%" />
         <Skeleton variant="text" width="15%" />
@@ -29,7 +29,7 @@ export const TableSkeleton: React.FC = () => (
 export const ChartSkeleton: React.FC = () => (
   <Paper elevation={2} sx={{ p: 2 }}>
     <Skeleton variant="text" width="40%" height={40} sx={{ mb: 2 }} />
-    <Box display="flex" gap={1} mb={2}>
+    <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
       <Skeleton variant="rectangular" width={100} height={36} />
       <Skeleton variant="rectangular" width={100} height={36} />
       <Skeleton variant="rectangular" width={100} height={36} />
@@ -43,7 +43,7 @@ export const DashboardSkeleton: React.FC = () => (
     <Skeleton variant="text" width="40%" height={48} sx={{ mb: 3 }} />
     <Grid container spacing={3}>
       {Array.from({ length: 4 }).map((_, index) => (
-        <Grid item xs={12} sm={6} md={3} key={index}>
+        <Grid key={index} size={{ xs: 12, sm: 6, md: 3 }}>
           <Card elevation={2}>
             <CardContent>
               <Skeleton variant="text" width="60%" height={24} />
@@ -53,7 +53,7 @@ export const DashboardSkeleton: React.FC = () => (
           </Card>
         </Grid>
       ))}
-      <Grid item xs={12}>
+      <Grid size={{ xs: 12 }}>
         <Card elevation={2}>
           <CardContent>
             <Skeleton variant="text" width="30%" height={28} sx={{ mb: 2 }} />
@@ -67,18 +67,18 @@ export const DashboardSkeleton: React.FC = () => (
 
 export const FiltersSkeleton: React.FC = () => (
   <Paper elevation={2} sx={{ p: 2, mb: 3 }}>
-    <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
       <Skeleton variant="text" width="30%" height={32} />
       <Skeleton variant="text" width="20%" height={24} />
     </Box>
     <Grid container spacing={2}>
-      <Grid item xs={12} md={6}>
+      <Grid size={{ xs: 12, md: 6 }}>
         <Skeleton variant="rectangular" width="100%" height={40} />
       </Grid>
-      <Grid item xs={12} md={3}>
+      <Grid size={{ xs: 12, md: 3 }}>
         <Skeleton variant="rectangular" width="100%" height={40} />
       </Grid>
-      <Grid item xs={12} md={3}>
+      <Grid size={{ xs: 12, md: 3 }}>
         <Skeleton variant="rectangular" width="100%" height={40} />
       </Grid>
     </Grid>

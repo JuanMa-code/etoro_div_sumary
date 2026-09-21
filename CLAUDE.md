@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Fully client-side SPA (React 18 + TypeScript + MUI 5 + Chart.js, built with Vite 8) that parses the dividend-history Excel export from eToro and renders dashboards, tables, charts and simple predictions. Everything runs in the browser via SheetJS: no backend, no API calls, no env vars. UI copy is Spanish. Deployed to GitHub Pages at `/etoro_div_sumary/`.
+Fully client-side SPA (React 19 + TypeScript 6 + MUI 9 + Chart.js, built with Vite 8) that parses the dividend-history Excel export from eToro and renders dashboards, tables, charts and simple predictions. Everything runs in the browser via SheetJS: no backend, no API calls, no env vars. UI copy is Spanish. Deployed to GitHub Pages at `/etoro_div_sumary/`.
 
 ## Commands
 
@@ -66,7 +66,8 @@ Single page, no router, no state library. `src/components/fileUpload/FileUpdload
 
 - `xlsx` is pinned to the SheetJS CDN tarball (`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`), not the npm registry. `npm audit` does not see it and `npm update` will not bump it; change the URL in `package.json` by hand.
 - Only `dependencies` reach `dist/`. Advisories in `devDependencies` (eslint, vite, typescript and their transitives) are dev-machine/CI noise, not user exposure. The gate that matters is `npm audit --omit=dev --audit-level=high`. Dependabot (`.github/dependabot.yml`) batches the rest into grouped weekly PRs; do not chase dev-only advisories individually.
-- Pending majors that need code migration, not just a version bump: React 19 (+ `@types/react` 19), MUI 9 (the `Grid item` API and `InputProps` used throughout are gone) and TypeScript 7. Treat each as its own task with a manual pass through every view, since there are no tests.
+- Current majors: React 19, MUI 9, Vite 8, ESLint 10, TypeScript 6. **TypeScript is pinned to `^6.0.x` on purpose**: `typescript-eslint` 8 declares `typescript <6.1.0` as a peer, so TypeScript 7 makes `npm ci` fail with an ERESOLVE conflict (this is what broke CI in September 2026 after a Dependabot bump). Only move to TypeScript 7 once `typescript-eslint` publishes support for it; do not "fix" it with `--legacy-peer-deps`.
+- MUI 9 removed the system props and the `Grid item` API. Every layout prop goes inside `sx` (`<Box sx={{ display: 'flex', mb: 2 }}>`, never `<Box display="flex" mb={2}>`), grid children use `size={{ xs: 12, md: 6 }}` instead of `item xs={12} md={6}`, `TextField` uses `slotProps={{ input, inputLabel }}` instead of `InputProps` / `InputLabelProps`, and `Autocomplete` uses `renderValue` (with `getItemProps`) instead of `renderTags`. Real props such as `Container maxWidth`, `Chip size` or `Typography color` are unaffected.
 - Vite `base` in `vite.config.ts` and the `homepage` in `package.json` must match the GitHub Pages repo path. The bundle is a single ~1 MB chunk; the size warning is known and accepted.
 
 ## Known dead code

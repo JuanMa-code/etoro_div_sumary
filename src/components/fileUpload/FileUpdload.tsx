@@ -300,7 +300,7 @@ const FileUpload: React.FC = () => {
         </Tooltip>
       </Typography>
       
-      <Box mb={2}>
+      <Box sx={{ mb: 2 }}>
         <Button 
           variant="contained" 
           component="label" 
@@ -325,8 +325,8 @@ const FileUpload: React.FC = () => {
       </Box>
 
       {fileInfo && (
-        <Box mb={2}>
-          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+        <Box sx={{ mb: 2 }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <Chip label={`📄 ${fileInfo.name}`} variant="outlined" />
             <Chip label={`📏 ${fileInfo.size}`} variant="outlined" />
             <Chip label={`📅 ${fileInfo.lastModified}`} variant="outlined" />
@@ -335,7 +335,7 @@ const FileUpload: React.FC = () => {
       )}
 
       {availableSheets.length > 0 && (
-        <Box mb={2}>
+        <Box sx={{ mb: 2 }}>
           <FormControl fullWidth>
             <InputLabel>Hoja de cálculo</InputLabel>
             <Select
@@ -370,15 +370,15 @@ const FileUpload: React.FC = () => {
           estado interno (filtros, ordenaciones, moneda) no sobrevive al
           cambio de hoja. */}
       {data.length > 0 && (
-        <Box mt={2} key={datasetId}>
-          <Box mb={2}>
+        <Box key={datasetId} sx={{ mt: 2 }}>
+          <Box sx={{ mb: 2 }}>
             <Stack 
               direction="row" 
               spacing={1} 
-              flexWrap="wrap" 
-              sx={{ 
+              sx={{
+                flexWrap: 'wrap',
                 justifyContent: { xs: 'flex-start', sm: 'center', md: 'flex-start' },
-                gap: 1 
+                gap: 1
               }}
             >
               <Button 

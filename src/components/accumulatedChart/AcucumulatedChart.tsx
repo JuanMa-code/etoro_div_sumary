@@ -181,12 +181,12 @@ const AccumulatedChart: React.FC<Props> = ({ data }) => {
 
   return (
     <Box sx={{ width: '100%' }}>
-      <Stack spacing={2} mb={3}>
+      <Stack spacing={2} sx={{ mb: 3 }}>
         <Typography variant="h6">
           Gráfico de Dividendos
         </Typography>
         
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           <Typography variant="body2">Tipo de gráfico:</Typography>
           <ToggleButtonGroup
             value={chartType}

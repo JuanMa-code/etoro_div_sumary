@@ -50,11 +50,11 @@ interface MetricCardProps {
 const MetricCard: React.FC<MetricCardProps> = ({ title, value, subtitle, icon, color = 'primary', tooltip }) => (
   <Card elevation={2} sx={{ height: '100%' }}>
     <CardContent>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
         <Typography variant="h6" color="text.secondary" gutterBottom>
           {title}
         </Typography>
-        <Box display="flex" alignItems="center">
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
           {tooltip && (
             <Tooltip title={tooltip}>
               <IconButton size="small">
@@ -65,14 +65,14 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, subtitle, icon, c
           <Box color={`${color}.main`}>{icon}</Box>
         </Box>
       </Box>
-      <Typography variant="h4" component="div" color={`${color}.main`} fontWeight="bold">
+      <Typography variant="h4" component="div" color={`${color}.main`} sx={{ fontWeight: 'bold' }}>
         {typeof value === 'number' ? value.toLocaleString('en-US', { 
           minimumFractionDigits: 2, 
           maximumFractionDigits: 2 
         }) : value}
       </Typography>
       {subtitle && (
-        <Typography variant="body2" color="text.secondary" mt={1}>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           {subtitle}
         </Typography>
       )}
@@ -177,7 +177,7 @@ const Dashboard: React.FC<Props> = ({ data }) => {
 
   if (data.length === 0) {
     return (
-      <Box textAlign="center" py={4}>
+      <Box sx={{ textAlign: 'center', py: 4 }}>
         <Typography variant="h6" color="text.secondary">
           Carga un archivo para ver el dashboard
         </Typography>
@@ -193,7 +193,7 @@ const Dashboard: React.FC<Props> = ({ data }) => {
       
       <Grid container spacing={3} sx={{ width: '100%' }}>
         {/* Totales */}
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <MetricCard
             title="Total USD"
             value={`$${metrics.totalUSD.toFixed(2)}`}
@@ -203,7 +203,7 @@ const Dashboard: React.FC<Props> = ({ data }) => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <MetricCard
             title="Total EUR"
             value={`€${metrics.totalEUR.toFixed(2)}`}
@@ -213,7 +213,7 @@ const Dashboard: React.FC<Props> = ({ data }) => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <MetricCard
             title="Transacciones"
             value={metrics.totalTransactions}
@@ -224,7 +224,7 @@ const Dashboard: React.FC<Props> = ({ data }) => {
           />
         </Grid>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <MetricCard
             title="Tendencia"
             value={metrics.trend === 'up' ? 'Creciente' : metrics.trend === 'down' ? 'Decreciente' : 'Estable'}
@@ -236,13 +236,13 @@ const Dashboard: React.FC<Props> = ({ data }) => {
         </Grid>
 
         {/* Información detallada */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 🏆 Mejores Rendimientos
               </Typography>
-              <Box mb={2}>
+              <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" color="text.secondary">
                   Mejor mes
                 </Typography>
@@ -267,13 +267,13 @@ const Dashboard: React.FC<Props> = ({ data }) => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 📅 Información Temporal
               </Typography>
-              <Box mb={2}>
+              <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" color="text.secondary">
                   Primer dividendo
                 </Typography>
@@ -281,7 +281,7 @@ const Dashboard: React.FC<Props> = ({ data }) => {
                   {formatDate(metrics.firstDividend)}
                 </Typography>
               </Box>
-              <Box mb={2}>
+              <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" color="text.secondary">
                   Último dividendo
                 </Typography>
@@ -302,14 +302,14 @@ const Dashboard: React.FC<Props> = ({ data }) => {
         </Grid>
 
         {/* Progreso hacia objetivos */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 🎯 Progreso del Año
               </Typography>
-              <Box mb={2}>
-                <Box display="flex" justifyContent="space-between" mb={1}>
+              <Box sx={{ mb: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                   <Typography variant="body2">
                     Objetivo anual estimado: ${(metrics.monthlyAverage * 12).toFixed(2)}
                   </Typography>
@@ -323,7 +323,7 @@ const Dashboard: React.FC<Props> = ({ data }) => {
                   sx={{ height: 8, borderRadius: 4 }}
                 />
               </Box>
-              <Box display="flex" gap={1} flexWrap="wrap">
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 <Chip 
                   label={`${metrics.uniqueCompanies} empresas en cartera`} 
                   variant="outlined" 

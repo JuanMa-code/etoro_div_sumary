@@ -250,10 +250,10 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
 
       <Grid container spacing={3} sx={{ width: '100%' }}>
         {/* Predicciones principales */}
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card elevation={2}>
             <CardContent>
-              <Box display="flex" alignItems="center" gap={1} mb={2}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <Psychology color="primary" />
                 <Typography variant="h6">Predicciones</Typography>
                 <Tooltip title={`Confianza: ${predictions.confidence.toFixed(1)}%`}>
@@ -263,25 +263,25 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
                 </Tooltip>
               </Box>
 
-              <Box mb={2}>
+              <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" color="text.secondary">
                   Próximo trimestre
                 </Typography>
-                <Typography variant="h5" color="primary" fontWeight="bold">
+                <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold' }}>
                   ${predictions.nextQuarterEstimate.toFixed(2)}
                 </Typography>
               </Box>
 
-              <Box mb={2}>
+              <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" color="text.secondary">
                   Próximo año
                 </Typography>
-                <Typography variant="h5" color="secondary" fontWeight="bold">
+                <Typography variant="h5" color="secondary" sx={{ fontWeight: 'bold' }}>
                   ${predictions.nextYearEstimate.toFixed(2)}
                 </Typography>
               </Box>
 
-              <Box display="flex" alignItems="center" gap={1}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 {predictions.trend === 'bullish' ? (
                   <TrendingUp color="success" />
                 ) : predictions.trend === 'bearish' ? (
@@ -308,15 +308,15 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
         </Grid>
 
         {/* Nivel de riesgo */}
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 📊 Análisis de Riesgo
               </Typography>
 
-              <Box mb={2}>
-                <Typography variant="body2" color="text.secondary" mb={1}>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                   Nivel de riesgo de la cartera
                 </Typography>
                 <Chip
@@ -333,8 +333,8 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
                 />
               </Box>
 
-              <Box mb={2}>
-                <Typography variant="body2" color="text.secondary" mb={1}>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                   Confianza en predicciones
                 </Typography>
                 <LinearProgress
@@ -355,7 +355,7 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
         </Grid>
 
         {/* Empresas con mejor crecimiento */}
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -369,13 +369,13 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
               )}
 
               {predictions.topGrowthCompanies.slice(0, 3).map((company) => (
-                <Box key={company.name} mb={1}>
+                <Box key={company.name} sx={{ mb: 1 }}>
                   <Typography variant="body2" noWrap title={company.name}>
                     {company.name.length > 20
                       ? `${company.name.substring(0, 20)}...`
                       : company.name}
                   </Typography>
-                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Chip
                       label={`${company.growth > 0 ? '+' : ''}${company.growth.toFixed(1)}%`}
                       color={company.growth > 0 ? 'success' : 'error'}
@@ -392,13 +392,13 @@ const PredictionsPanel: React.FC<Props> = ({ data }) => {
         </Grid>
 
         {/* Gráfico de predicción */}
-        <Grid item xs={12}>
+        <Grid size={{ xs: 12 }}>
           <Card elevation={2}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 📈 Proyección de Dividendos
               </Typography>
-              <Box height={300}>
+              <Box sx={{ height: 300 }}>
                 <Line
                   data={chartData}
                   options={{

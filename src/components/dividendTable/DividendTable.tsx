@@ -114,11 +114,11 @@ const DividendTable: React.FC<Props> = ({ data }) => {
 
   return (
     <Box sx={{ width: '100%' }}>
-      <Box mb={2} display="flex" justifyContent="space-between" alignItems="center" flexWrap="wrap">
+      <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
         <Typography variant="h6">
           Tabla de Dividendos ({processedData.length} registros)
         </Typography>
-        <Box display="flex" alignItems="center" gap={1}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body2">Nombres:</Typography>
           <IconButton 
             onClick={() => setShowShortNames(!showShortNames)}
@@ -133,7 +133,7 @@ const DividendTable: React.FC<Props> = ({ data }) => {
         </Box>
       </Box>
 
-      <Box mb={2} display="flex" gap={1} flexWrap="wrap">
+      <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
         <Chip 
           label={`Total USD: $${totals.totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           color="primary" 
@@ -193,7 +193,7 @@ const DividendTable: React.FC<Props> = ({ data }) => {
               <TableRow key={index} hover>
                 <TableCell>
                   <Box>
-                    <Typography variant="body2" fontWeight="medium">
+                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
                       {getDisplayName(row.nombre)}
                     </Typography>
                     {showShortNames && getNameByLongName(row.nombre) && (
@@ -209,12 +209,12 @@ const DividendTable: React.FC<Props> = ({ data }) => {
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Typography variant="body2" color="primary.main" fontWeight="medium">
+                  <Typography variant="body2" color="primary.main" sx={{ fontWeight: 'medium' }}>
                     ${row.importeUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
-                  <Typography variant="body2" color="secondary.main" fontWeight="medium">
+                  <Typography variant="body2" color="secondary.main" sx={{ fontWeight: 'medium' }}>
                     €{row.importeEUR.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Typography>
                 </TableCell>
