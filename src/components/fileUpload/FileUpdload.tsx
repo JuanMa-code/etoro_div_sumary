@@ -209,9 +209,13 @@ const FileUpload: React.FC = () => {
       
       for (let i = 0; i < Math.min(5, jsonData.length); i++) {
         const row = jsonData[i];
-        if (Array.isArray(row) && row.length > 3) {
+        if (Array.isArray(row)) {
           const potentialHeaders = row.map(cell => String(cell || '').trim());
-          const hasExpectedHeaders = potentialHeaders.some(header => 
+          // defval: '' rellena todas las filas hasta el ancho de la hoja, así
+          // que se cuentan las celdas con texto: una fila de título como
+          // "Historial de dividendos" no debe pasar por cabecera.
+          if (potentialHeaders.filter(Boolean).length <= 3) continue;
+          const hasExpectedHeaders = potentialHeaders.some(header =>
             header && (
               header.toLowerCase().includes('instrumento') ||
               header.toLowerCase().includes('dividend') ||
